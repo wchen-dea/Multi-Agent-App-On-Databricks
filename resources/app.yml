@@ -1,0 +1,49 @@
+resources:
+  apps:
+    agent_openai_agents_sdk_multiagent:
+      name: ${var.app_name}
+      description: "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
+      source_code_path: ./
+      config:
+        command: ["uv", "run", "start-app"]
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: ${var.mlflow_tracking_uri}
+        - name: MLFLOW_REGISTRY_URI
+          value: ${var.mlflow_registry_uri}
+        - name: API_PROXY
+          value: ${var.api_proxy}
+        - name: CHAT_APP_PORT
+          value: ${var.chat_app_port}
+        - name: CHAT_PROXY_TIMEOUT_SECONDS
+          value: ${var.chat_proxy_timeout_seconds}
+        - name: MLFLOW_EXPERIMENT_ID
+          value_from: "experiment"
+      # Resources which this app has access to
+      resources:
+      - name: 'experiment'
+        experiment:
+          experiment_id: ""
+          permission: 'CAN_MANAGE'
+      # TODO: Set your Genie space ID
+      - name: 'genie_space'
+        genie_space:
+          name: 'Genie Space'
+          space_id: ${var.genie_space_id}
+          permission: 'CAN_RUN'
+      # TODO: Set your knowledge-assistant serving endpoint name
+      - name: 'knowledge_assistant'
+        serving_endpoint:
+          name: ${var.knowledge_assistant_endpoint_name}
+          permission: 'CAN_QUERY'
+      # TODO: Set your serving endpoint name
+      - name: 'serving_endpoint'
+        serving_endpoint:
+          name: ${var.serving_endpoint_name}
+          permission: 'CAN_QUERY'
+      # TODO: Set the target app name to grant CAN_USE access.
+      # Requires CLI v0.298.0+ for native app-to-app bundle resource support.
+      - name: 'agent_app'
+        app:
+          name: ${var.target_app_name}
+          permission: 'CAN_USE'

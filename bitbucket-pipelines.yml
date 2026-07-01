@@ -1,0 +1,78 @@
+# Deploy this Databricks App from Bitbucket Pipelines.
+#
+# Required deployment variables in Bitbucket secrets (suffixed by env):
+#   DATABRICKS_HOST_DEV, DATABRICKS_CLIENT_ID_DEV, DATABRICKS_CLIENT_SECRET_DEV
+#   DATABRICKS_HOST_QA,  DATABRICKS_CLIENT_ID_QA,  DATABRICKS_CLIENT_SECRET_QA
+#   DATABRICKS_HOST_STG, DATABRICKS_CLIENT_ID_STG, DATABRICKS_CLIENT_SECRET_STG
+#   DATABRICKS_HOST_PROD,DATABRICKS_CLIENT_ID_PROD,DATABRICKS_CLIENT_SECRET_PROD
+#
+# Authentication mode: OAuth M2M service principal.
+
+image: python:3.11
+definitions:
+  steps:
+  - step: &deploy-databricks-bundle
+      name: Config Databricks and Deploy Bundle
+      caches:
+      - pip
+      script:
+      - apt-get update && apt-get install -y curl unzip
+      - curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      - export PATH="$HOME/.databricks/bin:$PATH"
+      - databricks --version
+      - export DATABRICKS_AUTH_TYPE=oauth-m2m
+      - |
+        TARGET="${DAB_TARGET:-${BITBUCKET_DEPLOYMENT_ENVIRONMENT:-}}"
+
+        if [ -z "$TARGET" ]; then
+          case "$BITBUCKET_BRANCH" in
+            dev) TARGET="dev" ;;
+            qa) TARGET="qa" ;;
+            stg) TARGET="stg" ;;
+            prod) TARGET="prod" ;;
+            *)
+              echo "Unsupported branch or missing deployment environment: $BITBUCKET_BRANCH"
+              exit 1
+              ;;
+          esac
+        fi
+
+        TARGET_UPPER="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
+
+        for key in DATABRICKS_HOST DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET; do
+          eval "value=\${${key}_${TARGET_UPPER}:-}"
+          if [ -z "$value" ]; then
+            echo "Missing required secret: ${key}_${TARGET_UPPER}" >&2
+            exit 1
+          fi
+          export "${key}=$value"
+        done
+
+        echo "Using Databricks target: $TARGET"
+        export DAB_TARGET="$TARGET"
+      - databricks bundle validate --target "$DAB_TARGET"
+      - databricks bundle deploy --target "$DAB_TARGET"
+      # bundle deploy uploads/configures, bundle run restarts app with new code
+      - databricks bundle run agent_openai_agents_sdk_multiagent --target "$DAB_TARGET"
+pipelines:
+  branches:
+    dev:
+    - step:
+        !!merge <<: *deploy-databricks-bundle
+        name: Validate and Deploy to dev
+        deployment: dev
+    qa:
+    - step:
+        !!merge <<: *deploy-databricks-bundle
+        name: Validate and Deploy to qa
+        deployment: qa
+    stg:
+    - step:
+        !!merge <<: *deploy-databricks-bundle
+        name: Validate and Deploy to stg
+        deployment: stg
+    prod:
+    - step:
+        !!merge <<: *deploy-databricks-bundle
+        name: Validate and Deploy to prod
+        deployment: prod

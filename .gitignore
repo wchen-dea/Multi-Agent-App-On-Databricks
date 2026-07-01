@@ -1,0 +1,78 @@
+# OS and editor
+.DS_Store
+.vscode/
+
+# Python caches and compiled artifacts
+__pycache__/
+*.py[cod]
+*.so
+
+# Python build and packaging outputs
+build/
+dist/
+site/
+.eggs/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+
+# Python tooling and test outputs
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.pyre/
+.pytype/
+.tox/
+.nox/
+.coverage*
+htmlcov/
+
+# Environments and local secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Frontend dependencies and build cache
+node_modules/
+bower_components/
+**/.vite/
+
+# Databricks and MLFlow local artifacts
+.databricks/
+**/.databricks
+**/mlruns/
+load-test-runs/
+
+# Docs build output
+docs/_build/
+
+# Ignore .claude directory but track template-provided skills
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/quickstart/
+!.claude/skills/discover-tools/
+!.claude/skills/create-tools/
+!.claude/skills/deploy/
+!.claude/skills/managed-memory/
+!.claude/skills/add-tools/
+!.claude/skills/run-locally/
+!.claude/skills/modify-agent/
+!.claude/skills/migrate-from-model-serving/
+!.claude/skills/long-running-server/
+!.claude/skills/load-testing/
+!.claude/skills/supervisor-api/
+!.claude/skills/supervisor-api-background-mode/
+!.claude/skills/supervisor-api-client-function-calling/
