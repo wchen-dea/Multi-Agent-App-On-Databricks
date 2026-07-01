@@ -1,8 +1,8 @@
-# RUNBOOK
+# Multiagent App on Databricks: Runbook
 
 ## Purpose
 
-This runbook provides standard operating procedures for running, deploying, validating, and recovering the Multi-Agent Orchestrator MVP across `dev`, `qa`, `stg`, and `prod`.
+This runbook provides standard operating procedures for running, deploying, validating, and recovering the Multiagent App on Databricks MVP across `dev`, `qa`, `stg`, and `prod`.
 
 ## Scope
 
@@ -238,5 +238,5 @@ Maintain this section with team details:
 ## Related Docs
 
 - `README.md`: project overview and onboarding flow
-- `docs/AGENTS.md`: developer workflow and implementation guidance
-- `docs/ARCHITECTURE.md`: component and request-flow details
+- `docs/agent_framework.md`: developer workflow and implementation guidance
+- `docs/architecture.md`: component and request-flow details

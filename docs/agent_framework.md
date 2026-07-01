@@ -1,4 +1,4 @@
-# Agent Development Guide
+# Multiagent App on Databricks: Agent Framework Guide
 
 This project is maintained as an MVP-first template. Prefer pragmatic, incremental changes that keep local iteration fast and deployment predictable across `dev`, `qa`, `stg`, and `prod`.
 
@@ -21,7 +21,7 @@ Then set up the environment:
 uv run quickstart --profile PROFILE_NAME
 ```
 
-1. Verify auth profile validity:
+4. Verify auth profile validity:
 
 ```bash
 databricks auth profiles

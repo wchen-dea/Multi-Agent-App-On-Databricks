@@ -1,4 +1,4 @@
-# Architecture
+# Multiagent App on Databricks: Architecture
 
 ## Overview
 
@@ -66,8 +66,8 @@ Target-specific permission and identity differences are defined in `targets/*.ym
 
 Current pattern:
 
-- lower environments can use reduced permission levels (for example, `CAN_EDIT`)
-- higher environments can use stricter/operational levels (for example, `CAN_MANAGE`)
+- Lower environments can use reduced permission levels (for example, `CAN_EDIT`).
+- Higher environments can use stricter operational levels (for example, `CAN_MANAGE`).
 
 ## Local Development
 
@@ -98,5 +98,5 @@ Not fully productized in MVP:
 ## Related Docs
 
 - `README.md`: setup, configuration, and deployment quick paths
-- `docs/AGENTS.md`: development workflow and skill usage
-- `docs/RUNBOOK.md`: operations, incident response, and rollback
+- `docs/agent_framework.md`: development workflow and skill usage
+- `docs/runbook.md`: operations, incident response, and rollback

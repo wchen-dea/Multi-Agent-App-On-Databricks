@@ -1,4 +1,4 @@
-# Multi-Agent-App-On-Databricks
+# Multiagent App on Databricks
 
 ## MVP Status
 
@@ -35,8 +35,8 @@ The orchestrator selects tools dynamically based on user intent and the routing 
 - `targets/*.yml`: environment-specific overrides (workspace, variables, permissions)
 - `databricks.yml`: bundle root configuration and include orchestration
 - `bitbucket-pipelines.yml`: CI/CD workflow for target-based deployment
-- `docs/AGENTS.md`: development and operations guide
-- `docs/ARCHITECTURE.md`: architecture and flow details
+- `docs/agent_framework.md`: development and operations guide
+- `docs/architecture.md`: architecture and flow details
 
 ## Prerequisites
 
@@ -60,7 +60,7 @@ Before local run or deployment, update variables in `agent_server/agent.py` and 
 Update these values in `agent_server/agent.py`:
 
 | Variable | Purpose |
-| ----------- | ------- |
+| -------- | ------- |
 | `GENIE_SPACE_ID` | Genie space ID |
 | `APP_AGENT_NAME` | App model name used as subagent |
 | `KNOWLEDGE_ASSISTANT_ENDPOINT` | Serving endpoint for knowledge assistant |
@@ -251,13 +251,13 @@ databricks bundle deploy -t "$TARGET" --profile "$PROFILE"
 
 `bundle deploy` uploads configuration, but `bundle run` is required to restart the running app version.
 
-### 302 or auth errors when querying app
+### 302 or auth errors when querying the app
 
 Use OAuth tokens for app query endpoints. PAT-based requests are not supported for app-to-app call patterns in this template.
 
 ## Additional Documentation
 
-- `docs/AGENTS.md`
-- `docs/ARCHITECTURE.md`
-- `docs/RUNBOOK.md`
-- `docs/CLAUDE.md`
+- `docs/agent_framework.md`
+- `docs/architecture.md`
+- `docs/runbook.md`
+- `docs/claude.md`
