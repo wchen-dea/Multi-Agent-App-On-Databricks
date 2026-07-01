@@ -19,7 +19,13 @@ from contextlib import AsyncExitStack
 from typing import Any, AsyncGenerator
 
 import mlflow
-from agents import Agent, Runner, function_tool, set_default_openai_api, set_default_openai_client
+from agents import (
+    Agent,
+    Runner,
+    function_tool,
+    set_default_openai_api,
+    set_default_openai_client,
+)
 from agents.exceptions import UserError
 from agents.tracing import set_trace_processors
 from databricks_openai import AsyncDatabricksOpenAI
@@ -68,7 +74,7 @@ SUBAGENTS: list[dict[str, Any]] = [
     {
         "name": "app_agent",
         "type": "app",
-        "endpoint": "multi_agent_app",  
+        "endpoint": "multi_agent_app",
         "description": (
             "Query a specialist agent deployed as a Databricks App. "
             "Use this for questions the specialist app agent handles."
@@ -77,7 +83,7 @@ SUBAGENTS: list[dict[str, Any]] = [
     {
         "name": "knowledge_assistant",
         "type": "serving_endpoint",
-        "endpoint": "knowledge_assistant",  # flat name, NOT a Vector Search index
+        "endpoint": "knowledge_assistant",
         "description": (
             "Query the knowledge-assistant endpoint on Model Serving. "
             "Use this for knowledge-base / documentation lookups. "
@@ -160,7 +166,9 @@ subagent_tools = [_make_subagent_tool(sa) for sa in SUBAGENTS if sa["type"] != "
 def build_mcp_servers() -> list[McpServer]:
     """Build a Genie MCP server for each genie subagent configured (usually 0 or 1)."""
     return [
-        McpServer(url=build_mcp_url(f"/api/2.0/mcp/genie/{sa['space_id']}"), name="Genie")
+        McpServer(
+            url=build_mcp_url(f"/api/2.0/mcp/genie/{sa['space_id']}"), name="Genie"
+        )
         for sa in SUBAGENTS
         if sa["type"] == "genie"
     ]
@@ -188,7 +196,9 @@ async def connect_healthy_mcp_servers(
             await connected.list_tools()  # forces the connectivity + authorization check now
             healthy.append(connected)
         except Exception:
-            logger.warning("MCP server %r unavailable; continuing without it.", name, exc_info=True)
+            logger.warning(
+                "MCP server %r unavailable; continuing without it.", name, exc_info=True
+            )
             unavailable.append(name)
     return healthy, unavailable
 
@@ -209,8 +219,9 @@ def create_orchestrator_agent(
     if tool_lines:
         instructions = (
             "You are an orchestrator agent. Route the user's request to the most "
-            f"appropriate tool:\n" + "\n".join(tool_lines) +
-            "\nIf unsure, ask the user for clarification."
+            f"appropriate tool:\n"
+            + "\n".join(tool_lines)
+            + "\nIf unsure, ask the user for clarification."
         )
     else:
         instructions = (
@@ -240,6 +251,35 @@ def create_orchestrator_agent(
 # ---------------------------------------------------------------------------
 
 
+def _to_messages(input_items) -> list[dict[str, Any]]:
+    """Normalize MLflow ResponseInputItems to plain role/content dicts.
+
+    MLflow's Pydantic model adds a ``type: "message"`` field when parsing
+    input dicts. The openai-agents SDK's chat completions converter then tries
+    to iterate string content as a list of content blocks, raising
+    ``TypeError: string indices must be integers``. This function strips all
+    framework-added fields and flattens list content to a plain string so the
+    SDK receives the simple ``{"role": ..., "content": ...}`` format it expects.
+    """
+    messages = []
+    for item in input_items:
+        d = item.model_dump() if hasattr(item, "model_dump") else item
+        if not isinstance(d, dict):
+            continue
+        role = d.get("role")
+        if not role:
+            continue
+        content = d.get("content", "")
+        if isinstance(content, list):
+            # Flatten Responses API content blocks to a single string.
+            texts = [
+                b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+            ]
+            content = " ".join(filter(None, texts))
+        messages.append({"role": role, "content": content})
+    return messages
+
+
 def _extract_mcp_errors(exc: Exception) -> list[UserError]:
     """Return any UserError instances from a direct exception or ExceptionGroup."""
     if isinstance(exc, UserError):
@@ -255,33 +295,47 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
     try:
         async with AsyncExitStack() as stack:
-            servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
+            servers, unavailable = await connect_healthy_mcp_servers(
+                stack, build_mcp_servers()
+            )
             agent = create_orchestrator_agent(servers, unavailable)
-            messages = [i.model_dump() if hasattr(i, "model_dump") else i for i in request.input]
+            messages = _to_messages(request.input)
             result = await Runner.run(agent, messages)
-            return ResponsesAgentResponse(output=[item.to_input_item() for item in result.new_items])
+            return ResponsesAgentResponse(
+                output=[item.to_input_item() for item in result.new_items]
+            )
     except Exception as e:
         mcp_errors = _extract_mcp_errors(e)
         if mcp_errors:
-            logger.warning("MCP tool error during invoke: %s", "; ".join(str(x) for x in mcp_errors))
+            logger.warning(
+                "MCP tool error during invoke: %s",
+                "; ".join(str(x) for x in mcp_errors),
+            )
         raise
 
 
 @stream()
-async def stream_handler(request: ResponsesAgentRequest) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
+async def stream_handler(
+    request: ResponsesAgentRequest,
+) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
     if session_id := get_session_id(request):
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
     try:
         async with AsyncExitStack() as stack:
-            servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
+            servers, unavailable = await connect_healthy_mcp_servers(
+                stack, build_mcp_servers()
+            )
             agent = create_orchestrator_agent(servers, unavailable)
-            messages = [i.model_dump() if hasattr(i, "model_dump") else i for i in request.input]
+            messages = _to_messages(request.input)
             result = Runner.run_streamed(agent, input=messages)
             async for event in process_agent_stream_events(result.stream_events()):
                 yield event
     except Exception as e:
         mcp_errors = _extract_mcp_errors(e)
         if mcp_errors:
-            logger.warning("MCP tool error during stream: %s", "; ".join(str(x) for x in mcp_errors))
+            logger.warning(
+                "MCP tool error during stream: %s",
+                "; ".join(str(x) for x in mcp_errors),
+            )
             return
         raise
