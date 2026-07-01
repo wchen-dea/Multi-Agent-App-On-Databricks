@@ -1,29 +1,22 @@
-# Based on the Databricks sample template:
-# https://github.com/databricks/app-templates
 """
-Multi-agent orchestrator template.
+Multi-agent orchestrator.
 
-!! CONFIGURATION REQUIRED !!
-This template is NOT ready to run out of the box. You must configure the
-Variable values below before running. Search for "TODO:" to find all
-values that need to be set.
-
-This agent demonstrates querying multiple backends from a single orchestrator:
+Routes user requests to one or more configured backends via the OpenAI Agents SDK:
   1. Another agent deployed as a Databricks App  (via DatabricksOpenAI Responses API)
   2. A Genie space                                (via built-in Databricks MCP server)
   3. A knowledge-assistant serving endpoint        (via DatabricksOpenAI Responses API)
   4. A model on a serving endpoint                 (via DatabricksOpenAI Responses API)
 
-NOTE: The serving endpoint tools use the Responses API exclusively. Your
-endpoints must be Responses API-compatible — these appear as "Agent
-(Responses)" in the Task column on the Serving UI in Databricks. Endpoints
-that only support the Chat Completions API ("LLM" task type) will NOT work
-with this template as-is.
+Configuration required: edit SUBAGENTS below, then update the orchestrator
+instructions and model in create_orchestrator_agent().
+
+Serving endpoints must use task type agent/v1/responses ("Agent (Responses)" in
+the Serving UI). Chat Completions endpoints will not work.
 """
 
 import logging
 from contextlib import AsyncExitStack
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import mlflow
 from agents import Agent, Runner, function_tool, set_default_openai_api, set_default_openai_client
@@ -41,26 +34,28 @@ from mlflow.types.responses import (
 from backend.utils import (
     build_mcp_url,
     get_session_id,
-    get_user_workspace_client,
     process_agent_stream_events,
 )
 
 # ---------------------------------------------------------------------------
-# TODO: Configure the subagents for your environment.
-#   - Uncomment and configure entries in SUBAGENTS to add backends the
-#     orchestrator can call.  Each entry becomes a separate tool.
-#   - "type" determines how the backend is called:
-#       "app"              → Responses API via apps/<endpoint>
-#       "serving_endpoint" → Responses API via <endpoint> (must be task type
-#                            agent/v1/responses, shown as "Agent (Responses)"
-#                            on the Serving UI)
-#       "genie"            → Databricks MCP server for a Genie space
-#                            (requires "space_id" instead of "endpoint")
+# Configuration
 # ---------------------------------------------------------------------------
 
-SUBAGENTS = [
-    # Uncomment and configure the subagents you need. You must enable at least one.
-    #
+# Model used for the orchestrator. Must be available in your Databricks workspace.
+ORCHESTRATOR_MODEL = "databricks-gpt-5-2"
+
+# TODO: Configure the subagents for your environment.
+# Uncomment and fill in the entries you need. Each entry becomes a callable tool.
+#
+# Fields per entry:
+#   name        - tool function name suffix (e.g. "genie" → query_genie)
+#   type        - "genie" | "app" | "serving_endpoint"
+#   description - shown to the orchestrator for routing decisions
+#   space_id    - Genie space UUID (type=genie only)
+#   endpoint    - app name or serving endpoint name (type=app/serving_endpoint)
+
+
+SUBAGENTS: list[dict[str, Any]] = [
     {
         "name": "genie",
         "type": "genie",
@@ -70,69 +65,78 @@ SUBAGENTS = [
             "Use this for questions about data, metrics, and tables."
         ),
     },
-    # {
-    #     "name": "app_agent",
-    #     "type": "app",
-    #     "endpoint": "<YOUR-APP-AGENT-NAME>",  # TODO: set to your Databricks App name
-    #     "description": (
-    #         "Query a specialist agent deployed as a Databricks App. "
-    #         "Use this for questions the specialist app agent handles."
-    #     ),
-    # },
-    # {
-    #     "name": "knowledge_assistant",
-    #     "type": "serving_endpoint",
-    #     "endpoint": "<YOUR-KNOWLEDGE-ASSISTANT-ENDPOINT>",  # flat name, NOT a Vector Search index
-    #     "description": (
-    #         "Query the knowledge-assistant endpoint on Model Serving. "
-    #         "Use this for knowledge-base / documentation lookups. "
-    #         "The endpoint must have task type agent/v1/responses."
-    #     ),
-    # },
-    # {
-    #     "name": "serving_endpoint",
-    #     "type": "serving_endpoint",
-    #     "endpoint": "<YOUR-SERVING-ENDPOINT>",
-    #     "description": (
-    #         "Query a model hosted on a Databricks Model Serving endpoint. "
-    #         "Use this for questions best answered by the serving model. "
-    #         "The endpoint must have task type agent/v1/responses."
-    #     ),
-    # },
+    {
+        "name": "app_agent",
+        "type": "app",
+        "endpoint": "multi_agent_app",  
+        "description": (
+            "Query a specialist agent deployed as a Databricks App. "
+            "Use this for questions the specialist app agent handles."
+        ),
+    },
+    {
+        "name": "knowledge_assistant",
+        "type": "serving_endpoint",
+        "endpoint": "knowledge_assistant",  # flat name, NOT a Vector Search index
+        "description": (
+            "Query the knowledge-assistant endpoint on Model Serving. "
+            "Use this for knowledge-base / documentation lookups. "
+            "The endpoint must have task type agent/v1/responses."
+        ),
+    },
+    {
+        "name": "serving_endpoint",
+        "type": "serving_endpoint",
+        "endpoint": "serving_endpoint",
+        "description": (
+            "Query a model hosted on a Databricks Model Serving endpoint. "
+            "Use this for questions best answered by the serving model. "
+            "The endpoint must have task type agent/v1/responses."
+        ),
+    },
 ]
 
 if not SUBAGENTS:
     logging.getLogger(__name__).warning(
         "No subagents configured in SUBAGENTS. Running without backend routing tools until configured."
     )
+else:
+    # Validate required fields at startup to catch config errors early.
+    for _sa in SUBAGENTS:
+        _required = {"name", "type", "description"}
+        _required.add("space_id" if _sa.get("type") == "genie" else "endpoint")
+        _missing = _required - _sa.keys()
+        if _missing:
+            raise ValueError(
+                f"SUBAGENTS entry {_sa.get('name', '?')!r} is missing required fields: {_missing}"
+            )
 
 # ---------------------------------------------------------------------------
 # Client setup
 # ---------------------------------------------------------------------------
 
-# NOTE: this will work for all databricks models OTHER than GPT-OSS, which uses a slightly different API
-set_default_openai_client(AsyncDatabricksOpenAI())
+# NOTE: a single client instance is shared: set as the Agents SDK default and
+# reused explicitly in tool functions to avoid creating redundant connections.
+_client = AsyncDatabricksOpenAI()
+set_default_openai_client(_client)
 set_default_openai_api("chat_completions")
 set_trace_processors([])  # only use mlflow for trace processing
 mlflow.openai.autolog()
 logging.getLogger("mlflow.utils.autologging_utils").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
-# Async client used inside tool functions to query other agents / endpoints
-_tool_client = AsyncDatabricksOpenAI()
-
 # ---------------------------------------------------------------------------
 # Subagent tools — one tool per non-genie SUBAGENTS entry
 # ---------------------------------------------------------------------------
 
 
-def _make_subagent_tool(subagent: dict):
+def _make_subagent_tool(subagent: dict[str, Any]):
     """Create a function_tool for a single subagent definition."""
     endpoint = subagent["endpoint"]
     model = f"apps/{endpoint}" if subagent["type"] == "app" else endpoint
 
     async def _call(question: str) -> str:
-        response = await _tool_client.responses.create(
+        response = await _client.responses.create(
             model=model,
             input=[{"role": "user", "content": question}],
         )
@@ -192,30 +196,40 @@ async def connect_healthy_mcp_servers(
 def create_orchestrator_agent(
     mcp_servers: list[McpServer], unavailable_tools: list[str] | None = None
 ) -> Agent:
-    """Build the orchestrator agent with all tools and MCP servers."""
-    # TODO: Update these instructions to match the tools you keep or add.
-    # The more specific the instructions, the more accurately the agent will
-    # route requests to the right tool.
-    instructions = (
-        "You are an orchestrator agent. Route the user's request to the "
-        "most appropriate tool or data source:\n"
-        "- Use the Genie MCP tools for questions about structured data.\n"
-        "- Use query_app_agent for questions that the specialist app agent handles.\n"
-        "- Use query_knowledge_assistant for knowledge-base / documentation lookups.\n"
-        "- Use query_serving_endpoint for questions best answered by the serving model.\n"
-        "If unsure, ask the user for clarification."
-    )
+    """Build the orchestrator agent with dynamically generated instructions."""
+    # Build routing instructions from the configured SUBAGENTS so they stay
+    # in sync with the actual tools without manual updates.
+    tool_lines = []
+    for sa in SUBAGENTS:
+        if sa["type"] == "genie":
+            tool_lines.append(f"- Genie MCP tools ({sa['name']}): {sa['description']}")
+        else:
+            tool_lines.append(f"- query_{sa['name']}: {sa['description']}")
+
+    if tool_lines:
+        instructions = (
+            "You are an orchestrator agent. Route the user's request to the most "
+            f"appropriate tool:\n" + "\n".join(tool_lines) +
+            "\nIf unsure, ask the user for clarification."
+        )
+    else:
+        instructions = (
+            "You are an assistant. No routing tools are configured. "
+            "Answer based on your own knowledge."
+        )
+
     if unavailable_tools:
         names = ", ".join(sorted(set(unavailable_tools)))
         instructions += (
-            f"\n\nThese data sources are currently UNAVAILABLE (not authorized or unreachable "
-            f"right now): {names}. If answering requires one of them, briefly tell the user it "
-            "isn't available right now instead of guessing, and use whatever else you have."
+            f"\n\nThese tools are currently UNAVAILABLE: {names}. "
+            "If answering requires one of them, tell the user it isn't available "
+            "instead of guessing."
         )
+
     return Agent(
         name="Orchestrator",
         instructions=instructions,
-        model="databricks-gpt-5-2",  # TODO: change model if desired
+        model=ORCHESTRATOR_MODEL,
         mcp_servers=mcp_servers,
         tools=subagent_tools,
     )
@@ -226,12 +240,19 @@ def create_orchestrator_agent(
 # ---------------------------------------------------------------------------
 
 
+def _extract_mcp_errors(exc: Exception) -> list[UserError]:
+    """Return any UserError instances from a direct exception or ExceptionGroup."""
+    if isinstance(exc, UserError):
+        return [exc]
+    if isinstance(exc, BaseExceptionGroup):
+        return [e for e in exc.exceptions if isinstance(e, UserError)]
+    return []
+
+
 @invoke()
 async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentResponse:
     if session_id := get_session_id(request):
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
-    # Optionally use the user's workspace client for on-behalf-of authentication
-    # user_workspace_client = get_user_workspace_client()
     try:
         async with AsyncExitStack() as stack:
             servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
@@ -240,17 +261,9 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
             result = await Runner.run(agent, messages)
             return ResponsesAgentResponse(output=[item.to_input_item() for item in result.new_items])
     except Exception as e:
-        # Catch UserError from MCP tool calls (e.g. 429 rate limits) whether raised
-        # directly or wrapped in an ExceptionGroup by anyio's task runner.
-        user_errors = []
-        if isinstance(e, UserError):
-            user_errors = [e]
-        elif isinstance(e, BaseExceptionGroup):
-            user_errors = [x for x in e.exceptions if isinstance(x, UserError)]
-        if user_errors:
-            msg = "; ".join(str(x) for x in user_errors)
-            logger.warning("MCP tool error during invoke (skipping): %s", msg)
-            raise
+        mcp_errors = _extract_mcp_errors(e)
+        if mcp_errors:
+            logger.warning("MCP tool error during invoke: %s", "; ".join(str(x) for x in mcp_errors))
         raise
 
 
@@ -258,25 +271,17 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
 async def stream_handler(request: ResponsesAgentRequest) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
     if session_id := get_session_id(request):
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
-    # Optionally use the user's workspace client for on-behalf-of authentication
-    # user_workspace_client = get_user_workspace_client()
     try:
         async with AsyncExitStack() as stack:
             servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
             agent = create_orchestrator_agent(servers, unavailable)
             messages = [i.model_dump() if hasattr(i, "model_dump") else i for i in request.input]
             result = Runner.run_streamed(agent, input=messages)
-
             async for event in process_agent_stream_events(result.stream_events()):
                 yield event
     except Exception as e:
-        user_errors = []
-        if isinstance(e, UserError):
-            user_errors = [e]
-        elif isinstance(e, BaseExceptionGroup):
-            user_errors = [x for x in e.exceptions if isinstance(x, UserError)]
-        if user_errors:
-            msg = "; ".join(str(x) for x in user_errors)
-            logger.warning("MCP tool error during stream (skipping): %s", msg)
+        mcp_errors = _extract_mcp_errors(e)
+        if mcp_errors:
+            logger.warning("MCP tool error during stream: %s", "; ".join(str(x) for x in mcp_errors))
             return
         raise

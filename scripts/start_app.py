@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Based on the Databricks sample template:
-# https://github.com/databricks/app-templates
 """
 Start script for running frontend and backend processes concurrently.
 
