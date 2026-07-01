@@ -47,18 +47,8 @@ from backend.utils import (
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Model used for the orchestrator. Must be available in your Databricks workspace.
 ORCHESTRATOR_MODEL = "databricks-gpt-5-2"
 
-# TODO: Configure the subagents for your environment.
-# Uncomment and fill in the entries you need. Each entry becomes a callable tool.
-#
-# Fields per entry:
-#   name        - tool function name suffix (e.g. "genie" → query_genie)
-#   type        - "genie" | "app" | "serving_endpoint"
-#   description - shown to the orchestrator for routing decisions
-#   space_id    - Genie space UUID (type=genie only)
-#   endpoint    - app name or serving endpoint name (type=app/serving_endpoint)
 
 
 SUBAGENTS: list[dict[str, Any]] = [
@@ -71,35 +61,35 @@ SUBAGENTS: list[dict[str, Any]] = [
             "Use this for questions about data, metrics, and tables."
         ),
     },
-    {
-        "name": "app_agent",
-        "type": "app",
-        "endpoint": "multi_agent_app",
-        "description": (
-            "Query a specialist agent deployed as a Databricks App. "
-            "Use this for questions the specialist app agent handles."
-        ),
-    },
-    {
-        "name": "knowledge_assistant",
-        "type": "serving_endpoint",
-        "endpoint": "knowledge_assistant",
-        "description": (
-            "Query the knowledge-assistant endpoint on Model Serving. "
-            "Use this for knowledge-base / documentation lookups. "
-            "The endpoint must have task type agent/v1/responses."
-        ),
-    },
-    {
-        "name": "serving_endpoint",
-        "type": "serving_endpoint",
-        "endpoint": "serving_endpoint",
-        "description": (
-            "Query a model hosted on a Databricks Model Serving endpoint. "
-            "Use this for questions best answered by the serving model. "
-            "The endpoint must have task type agent/v1/responses."
-        ),
-    },
+    # {
+    #     "name": "app_agent",
+    #     "type": "app",
+    #     "endpoint": "multi_agent_app",
+    #     "description": (
+    #         "Query a specialist agent deployed as a Databricks App. "
+    #         "Use this for questions the specialist app agent handles."
+    #     ),
+    # },
+    # {
+    #     "name": "knowledge_assistant",
+    #     "type": "serving_endpoint",
+    #     "endpoint": "knowledge_assistant",
+    #     "description": (
+    #         "Query the knowledge-assistant endpoint on Model Serving. "
+    #         "Use this for knowledge-base / documentation lookups. "
+    #         "The endpoint must have task type agent/v1/responses."
+    #     ),
+    # },
+    # {
+    #     "name": "serving_endpoint",
+    #     "type": "serving_endpoint",
+    #     "endpoint": "serving_endpoint",
+    #     "description": (
+    #         "Query a model hosted on a Databricks Model Serving endpoint. "
+    #         "Use this for questions best answered by the serving model. "
+    #         "The endpoint must have task type agent/v1/responses."
+    #     ),
+    # },
 ]
 
 if not SUBAGENTS:

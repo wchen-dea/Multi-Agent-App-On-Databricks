@@ -135,10 +135,10 @@ This project deploys with Databricks Declarative Automation Bundles.
 
 | Target | Mode | App name |
 | ------ | ---- | -------- |
-| dev | development | `agent-openai-multiagent-dev` |
-| qa | development | `agent-openai-multiagent-qa` |
-| stg | production | `agent-openai-multiagent-stg` |
-| prod | production | `agent-openai-multiagent` |
+| dev | development | `MULTIAGENT_APP-dev` |
+| qa | development | `MULTIAGENT_APP-qa` |
+| stg | production | `MULTIAGENT_APP-stg` |
+| prod | production | `MULTIAGENT_APP` |
 
 ### Manual deploy commands
 
@@ -214,7 +214,7 @@ from databricks_openai import DatabricksOpenAI
 
 w = WorkspaceClient()
 client = DatabricksOpenAI(workspace_client=w)
-APP_NAME = "agent-openai-multiagent-dev"
+APP_NAME = "MULTIAGENT_APP-dev"
 
 response = client.responses.create(
   model=f"apps/{APP_NAME}",

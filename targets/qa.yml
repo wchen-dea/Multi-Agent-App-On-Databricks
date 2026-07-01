@@ -6,7 +6,7 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:
-      app_name: agent-openai-multiagent-qa
+      app_name: MULTIAGENT_APP-qa
       genie_space_id: "<QA-GENIE-SPACE-ID>"
       knowledge_assistant_endpoint_name: "<QA-KNOWLEDGE-ASSISTANT-ENDPOINT>"
       serving_endpoint_name: "<QA-SERVING-ENDPOINT>"
