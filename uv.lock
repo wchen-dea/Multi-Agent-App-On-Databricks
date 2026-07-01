@@ -9,50 +9,6 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "agent-server"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "databricks-agents" },
-    { name = "databricks-openai" },
-    { name = "fastapi" },
-    { name = "mlflow" },
-    { name = "openai-agents", version = "0.10.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or python_full_version >= '3.14'" },
-    { name = "openai-agents", version = "0.17.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' and python_full_version < '3.14'" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc" },
-    { name = "python-dotenv" },
-    { name = "uvicorn" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "hatchling" },
-    { name = "pytest" },
-]
-setup = [
-    { name = "ruamel-yaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "databricks-agents", specifier = ">=1.9.3" },
-    { name = "databricks-openai", specifier = ">=0.13.0" },
-    { name = "fastapi", specifier = ">=0.129.0" },
-    { name = "mlflow", specifier = ">=3.10.0" },
-    { name = "openai-agents", specifier = ">=0.4.1" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.25.0" },
-    { name = "python-dotenv", specifier = ">=1.2.1" },
-    { name = "uvicorn", specifier = ">=0.41.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "hatchling", specifier = ">=1.28.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-]
-setup = [{ name = "ruamel-yaml", specifier = ">=0.18.0" }]
-
-[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1950,6 +1906,50 @@ sdist = { url = "https://files.pythonhosted.org/packages/04/34/ff5e72919b4eec8fe
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5f/4a/4658a9e514c8f079e40b608661844b9beb21c7530e6ee1e7f830cf81541e/mlflow_tracing-3.14.0-py3-none-any.whl", hash = "sha256:854488dd18068f15e2a56f1cc7b8868c611d09ea39068d0a691a3f07e0048cae", size = 1703863, upload-time = "2026-06-17T07:57:58.687Z" },
 ]
+
+[[package]]
+name = "multiagent-app-on-databricks"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "databricks-agents" },
+    { name = "databricks-openai" },
+    { name = "fastapi" },
+    { name = "mlflow" },
+    { name = "openai-agents", version = "0.10.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or python_full_version >= '3.14'" },
+    { name = "openai-agents", version = "0.17.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' and python_full_version < '3.14'" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc" },
+    { name = "python-dotenv" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "hatchling" },
+    { name = "pytest" },
+]
+setup = [
+    { name = "ruamel-yaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "databricks-agents", specifier = ">=1.9.3" },
+    { name = "databricks-openai", specifier = ">=0.13.0" },
+    { name = "fastapi", specifier = ">=0.129.0" },
+    { name = "mlflow", specifier = ">=3.10.0" },
+    { name = "openai-agents", specifier = ">=0.4.1" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.25.0" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "uvicorn", specifier = ">=0.41.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hatchling", specifier = ">=1.28.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+]
+setup = [{ name = "ruamel-yaml", specifier = ">=0.18.0" }]
 
 [[package]]
 name = "multidict"

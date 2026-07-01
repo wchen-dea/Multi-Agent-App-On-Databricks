@@ -3,7 +3,7 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-baff2b7f-4402.cloud.databricks.com
+      host: PLACE_HOLDER_FOR_DATABRICKS_HOST_DEV
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:

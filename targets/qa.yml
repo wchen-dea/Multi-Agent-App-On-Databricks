@@ -2,7 +2,7 @@ targets:
   qa:
     mode: development
     workspace:
-      host: https://dbc-a953eedf-8cf6.cloud.databricks.com
+      host: PLACE_HOLDER_FOR_DATABRICKS_HOST_QA
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:

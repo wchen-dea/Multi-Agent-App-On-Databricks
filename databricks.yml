@@ -1,5 +1,5 @@
 bundle:
-  name: agent_openai_agents_sdk_multiagent
+  name: multiagent_app_on_databricks
   uuid: ad3ec8f6-1ff5-4bb2-bbb7-056bd09c43a8
 include:
 - resources/*.yml

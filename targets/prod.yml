@@ -2,7 +2,7 @@ targets:
   prod:
     mode: production
     workspace:
-      host: https://dbc-c10f25da-40b4.cloud.databricks.com
+      host: PLACE_HOLDER_FOR_DATABRICKS_HOST_PRD
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:

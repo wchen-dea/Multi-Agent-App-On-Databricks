@@ -2,7 +2,7 @@ targets:
   stg:
     mode: production
     workspace:
-      host: https://dbc-7320ccbb-85c1.cloud.databricks.com
+      host: PLACE_HOLDER_FOR_DATABRICKS_HOST_STG
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:

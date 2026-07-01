@@ -1,5 +1,5 @@
 [project]
-name = "agent-server"
+name = "multiagent-app-on-databricks"
 version = "0.1.0"
 description = "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
 readme = "README.md"
@@ -35,6 +35,9 @@ setup = [
 
 [tool.uv]
 default-groups = ["dev", "setup"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent_server", "scripts"]
 
 
 [project.scripts]
