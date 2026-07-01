@@ -13,11 +13,12 @@ The runtime is built with MLflow Agent Server and OpenAI Agents SDK.
 
 ## Core Components
 
-- `agent_server/start_server.py`: boots MLflow `AgentServer` (`ResponsesAgent`) and exposes the app.
-- `agent_server/agent.py`: defines orchestrator logic, tool wiring, and invoke/stream handlers.
-- `agent_server/utils.py`: helper functions for MCP URLs, session metadata, and stream event processing.
+- `backend/start_server.py`: boots MLflow `AgentServer` (`ResponsesAgent`) and exposes the app.
+- `backend/agent.py`: defines orchestrator logic, tool wiring, and invoke/stream handlers.
+- `backend/utils.py`: helper functions for MCP URLs, session metadata, and stream event processing.
 - `scripts/start_app.py`: local process manager for backend and optional frontend chat UI.
-- `resources/app.yml`: shared Databricks app/resource defaults.
+- `frontend/chainlit_app.py`: Chainlit chat UI (served locally via `uv run start-app`).
+- `resources/multiagent_app.yml`: shared Databricks app/resource defaults.
 - `targets/*.yml`: environment-specific workspace, identity, and permission overrides.
 
 ## Request Flow
@@ -61,7 +62,7 @@ Each target defines:
 
 ## Permissions Model
 
-Shared defaults are defined in `resources/app.yml`.
+Shared defaults are defined in `resources/multiagent_app.yml`.
 Target-specific permission and identity differences are defined in `targets/*.yml` under target-level `resources` overrides.
 
 Current pattern:
@@ -98,5 +99,5 @@ Not fully productized in MVP:
 ## Related Docs
 
 - `README.md`: setup, configuration, and deployment quick paths
-- `docs/agent_framework.md`: development workflow and skill usage
+- `docs/agent_framework.md`: developer workflow and implementation guidance
 - `docs/runbook.md`: operations, incident response, and rollback

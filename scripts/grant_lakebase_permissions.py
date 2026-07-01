@@ -44,7 +44,7 @@ MEMORY_TYPE_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "store_vectors",
             "vector_migrations",
         ],
-        "agent_server": [
+        "backend": [
             "responses",
             "messages",
         ],
@@ -54,7 +54,7 @@ MEMORY_TYPE_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "agent_sessions",
             "agent_messages",
         ],
-        "agent_server": [
+        "backend": [
             "responses",
             "messages",
         ],
@@ -63,8 +63,8 @@ MEMORY_TYPE_SCHEMAS: dict[str, dict[str, list[str]]] = {
 
 # Memory types that need sequence privileges (auto-increment columns)
 NEEDS_SEQUENCES = {
-    "openai": [MEMORY_SCHEMA, "agent_server"],
-    "langgraph": ["agent_server"],
+    "openai": [MEMORY_SCHEMA, "backend"],
+    "langgraph": ["backend"],
 }
 
 # Shared schemas that need sequence privileges for all memory types.

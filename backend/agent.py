@@ -1,3 +1,5 @@
+# Based on the Databricks sample template:
+# https://github.com/databricks/app-templates
 """
 Multi-agent orchestrator template.
 
@@ -25,6 +27,7 @@ from typing import AsyncGenerator
 
 import mlflow
 from agents import Agent, Runner, function_tool, set_default_openai_api, set_default_openai_client
+from agents.exceptions import UserError
 from agents.tracing import set_trace_processors
 from databricks_openai import AsyncDatabricksOpenAI
 from databricks_openai.agents import McpServer
@@ -35,7 +38,7 @@ from mlflow.types.responses import (
     ResponsesAgentStreamEvent,
 )
 
-from agent_server.utils import (
+from backend.utils import (
     build_mcp_url,
     get_session_id,
     get_user_workspace_client,
@@ -58,15 +61,15 @@ from agent_server.utils import (
 SUBAGENTS = [
     # Uncomment and configure the subagents you need. You must enable at least one.
     #
-    # {
-    #     "name": "genie",
-    #     "type": "genie",
-    #     "space_id": "<YOUR-GENIE-SPACE-ID>",  # UUID from the Genie space URL
-    #     "description": (
-    #         "Query a Genie space for structured data analysis. "
-    #         "Use this for questions about data, metrics, and tables."
-    #     ),
-    # },
+    {
+        "name": "genie",
+        "type": "genie",
+        "space_id": "01f159f5d91419549020e3609add391c",  # UUID from the Genie space URL
+        "description": (
+            "Query a Genie space for structured data analysis. "
+            "Use this for questions about data, metrics, and tables."
+        ),
+    },
     # {
     #     "name": "app_agent",
     #     "type": "app",
@@ -229,12 +232,26 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
     # Optionally use the user's workspace client for on-behalf-of authentication
     # user_workspace_client = get_user_workspace_client()
-    async with AsyncExitStack() as stack:
-        servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
-        agent = create_orchestrator_agent(servers, unavailable)
-        messages = [i.model_dump() for i in request.input]
-        result = await Runner.run(agent, messages)
-        return ResponsesAgentResponse(output=[item.to_input_item() for item in result.new_items])
+    try:
+        async with AsyncExitStack() as stack:
+            servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
+            agent = create_orchestrator_agent(servers, unavailable)
+            messages = [i.model_dump() if hasattr(i, "model_dump") else i for i in request.input]
+            result = await Runner.run(agent, messages)
+            return ResponsesAgentResponse(output=[item.to_input_item() for item in result.new_items])
+    except Exception as e:
+        # Catch UserError from MCP tool calls (e.g. 429 rate limits) whether raised
+        # directly or wrapped in an ExceptionGroup by anyio's task runner.
+        user_errors = []
+        if isinstance(e, UserError):
+            user_errors = [e]
+        elif isinstance(e, BaseExceptionGroup):
+            user_errors = [x for x in e.exceptions if isinstance(x, UserError)]
+        if user_errors:
+            msg = "; ".join(str(x) for x in user_errors)
+            logger.warning("MCP tool error during invoke (skipping): %s", msg)
+            raise
+        raise
 
 
 @stream()
@@ -243,11 +260,23 @@ async def stream_handler(request: ResponsesAgentRequest) -> AsyncGenerator[Respo
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
     # Optionally use the user's workspace client for on-behalf-of authentication
     # user_workspace_client = get_user_workspace_client()
-    async with AsyncExitStack() as stack:
-        servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
-        agent = create_orchestrator_agent(servers, unavailable)
-        messages = [i.model_dump() for i in request.input]
-        result = Runner.run_streamed(agent, input=messages)
+    try:
+        async with AsyncExitStack() as stack:
+            servers, unavailable = await connect_healthy_mcp_servers(stack, build_mcp_servers())
+            agent = create_orchestrator_agent(servers, unavailable)
+            messages = [i.model_dump() if hasattr(i, "model_dump") else i for i in request.input]
+            result = Runner.run_streamed(agent, input=messages)
 
-        async for event in process_agent_stream_events(result.stream_events()):
-            yield event
+            async for event in process_agent_stream_events(result.stream_events()):
+                yield event
+    except Exception as e:
+        user_errors = []
+        if isinstance(e, UserError):
+            user_errors = [e]
+        elif isinstance(e, BaseExceptionGroup):
+            user_errors = [x for x in e.exceptions if isinstance(x, UserError)]
+        if user_errors:
+            msg = "; ".join(str(x) for x in user_errors)
+            logger.warning("MCP tool error during stream (skipping): %s", msg)
+            return
+        raise

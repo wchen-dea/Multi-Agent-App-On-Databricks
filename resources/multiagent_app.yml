@@ -1,6 +1,6 @@
 resources:
   apps:
-    agent_openai_agents_sdk_multiagent:
+    multiagent_app:
       name: ${var.app_name}
       description: "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
       source_code_path: ./

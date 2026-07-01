@@ -25,13 +25,14 @@ This repository contains a Databricks-hosted orchestrator agent that routes user
 | Knowledge assistant on serving | DatabricksOpenAI responses client | Responses API |
 | General serving endpoint | DatabricksOpenAI responses client | Responses API |
 
-The orchestrator selects tools dynamically based on user intent and the routing instructions in `agent_server/agent.py`.
+The orchestrator selects tools dynamically based on user intent and the routing instructions in `backend/agent.py`.
 
 ## Repository Layout
 
-- `agent_server/`: orchestrator code, invoke and stream handlers, server startup, evaluation
+- `backend/`: orchestrator code, invoke and stream handlers, server startup, evaluation
+- `frontend/chainlit_app.py`: Chainlit chat UI for local development
 - `scripts/`: quickstart, preflight, start app, and discovery utilities
-- `resources/app.yml`: shared Databricks app resource definition
+- `resources/multiagent_app.yml`: shared Databricks app resource definition
 - `targets/*.yml`: environment-specific overrides (workspace, variables, permissions)
 - `databricks.yml`: bundle root configuration and include orchestration
 - `bitbucket-pipelines.yml`: CI/CD workflow for target-based deployment
@@ -43,28 +44,27 @@ The orchestrator selects tools dynamically based on user intent and the routing 
 1. Python 3.11+
 2. `uv`
 3. Databricks CLI
-4. Node.js 20 LTS (for local chat UI)
 
 Recommended install docs:
 
 - [uv installation](https://docs.astral.sh/uv/getting-started/installation/)
 - [Databricks CLI installation](https://docs.databricks.com/aws/en/dev-tools/cli/install)
-- [nvm installation](https://github.com/nvm-sh/nvm)
 
 ## Required Configuration
 
-Before local run or deployment, update variables in `agent_server/agent.py` and `targets/*.yml`.
+Before local run or deployment, update variables in `backend/agent.py` and `targets/*.yml`.
 
-### Agent Variables
+### Agent Configuration
 
-Update these values in `agent_server/agent.py`:
+Edit the `SUBAGENTS` list in `backend/agent.py`. Each entry becomes a tool the orchestrator can call:
 
-| Variable | Purpose |
+| Entry field | Purpose |
 | -------- | ------- |
-| `GENIE_SPACE_ID` | Genie space ID |
-| `APP_AGENT_NAME` | App model name used as subagent |
-| `KNOWLEDGE_ASSISTANT_ENDPOINT` | Serving endpoint for knowledge assistant |
-| `SERVING_ENDPOINT_NAME` | Serving endpoint for model or agent |
+| `type: "genie"` + `space_id` | Genie space UUID (from the Genie space URL) |
+| `type: "app"` + `endpoint` | Databricks App name to call as a subagent |
+| `type: "serving_endpoint"` + `endpoint` | Model Serving endpoint (must be `agent/v1/responses` task type) |
+
+Also update the orchestrator `instructions` and `model` near the bottom of `backend/agent.py` to match your configured tools.
 
 ### Target Variables
 
@@ -128,7 +128,7 @@ uv run agent-evaluate
 This project deploys with Databricks Declarative Automation Bundles.
 
 - `databricks.yml` defines bundle metadata, include paths, and global variables.
-- `resources/app.yml` defines shared app config and baseline resources.
+- `resources/multiagent_app.yml` defines shared app config and baseline resources.
 - `targets/dev.yml`, `targets/qa.yml`, `targets/stg.yml`, and `targets/prod.yml` define environment overrides.
 
 ### Target summary
@@ -163,7 +163,7 @@ databricks bundle deploy -t prod --profile prd
 Start or restart app after deploy:
 
 ```bash
-databricks bundle run agent_openai_agents_sdk_multiagent --target dev
+databricks bundle run multiagent_app --target dev
 ```
 
 Replace `dev` with `qa`, `stg`, or `prod` as needed.
@@ -243,7 +243,7 @@ curl --request POST \
 If deploy fails because an app already exists, bind it to the bundle:
 
 ```bash
-databricks bundle deployment bind agent_openai_agents_sdk_multiagent "$APP_NAME" --auto-approve
+databricks bundle deployment bind multiagent_app "$APP_NAME" --auto-approve
 databricks bundle deploy -t "$TARGET" --profile "$PROFILE"
 ```
 
@@ -253,7 +253,17 @@ databricks bundle deploy -t "$TARGET" --profile "$PROFILE"
 
 ### 302 or auth errors when querying the app
 
-Use OAuth tokens for app query endpoints. PAT-based requests are not supported for app-to-app call patterns in this template.
+Use OAuth tokens for app query endpoints. PAT-based requests are not supported for app-to-app call patterns.
+
+### Backend crashes with credential error on startup
+
+If the backend exits immediately with `cannot configure default credentials`, a stale `DATABRICKS_TOKEN` in `.env` is conflicting with CLI auth. Comment it out and rely on the CLI profile:
+
+```bash
+databricks auth profiles   # verify DEFAULT or dev profile shows YES
+```
+
+Then remove or comment out `DATABRICKS_TOKEN` in `.env` and restart.
 
 ## Additional Documentation
 

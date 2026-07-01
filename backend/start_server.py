@@ -13,7 +13,7 @@ if not os.getenv("MLFLOW_EXPERIMENT_ID", "").strip():
     os.environ.pop("MLFLOW_EXPERIMENT_ID", None)
 
 # Need to import the agent to register the functions with the server
-import agent_server.agent  # noqa: E402
+import backend.agent  # noqa: E402
 
 agent_server = AgentServer("ResponsesAgent", enable_chat_proxy=True)
 # Define the app as a module level variable to enable multiple workers
@@ -27,4 +27,4 @@ except Exception as exc:
 
 
 def main():
-    agent_server.run(app_import_string="agent_server.start_server:app")
+    agent_server.run(app_import_string="backend.start_server:app")

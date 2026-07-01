@@ -1,33 +1,22 @@
-# Multiagent App on Databricks: Agent Framework Guide
+# Multiagent App on Databricks: Developer Guide
 
-This project is maintained as an MVP-first template. Prefer pragmatic, incremental changes that keep local iteration fast and deployment predictable across `dev`, `qa`, `stg`, and `prod`.
+Prefer pragmatic, incremental changes that keep local iteration fast and deployment predictable across `dev`, `qa`, `stg`, and `prod`.
 
-## Mandatory First Actions
+## First-Time Setup
 
-Ask the user these questions before implementation:
-
-1. App deployment target:
-   Do you have an existing Databricks app you want to deploy to, or should we create a new one? If existing, what is the app name?
-2. If the user mentions memory or persistence:
-   For memory capabilities, do you have an existing Lakebase instance? If so, what is the instance name?
-
-Then set up the environment:
-
-1. Read the quickstart skill at `../.claude/skills/quickstart/SKILL.md`.
-2. Check whether `.env` exists.
-3. If `.env` does not exist, run:
+1. Check whether `.env` exists. If not, run:
 
 ```bash
 uv run quickstart --profile PROFILE_NAME
 ```
 
-4. Verify auth profile validity:
+2. Verify auth profile is valid:
 
 ```bash
 databricks auth profiles
 ```
 
-Critical rule: all Databricks CLI commands must include the target profile.
+3. Always include the target profile in Databricks CLI commands:
 
 ```bash
 databricks COMMAND --profile PROFILE_NAME
@@ -35,138 +24,121 @@ databricks COMMAND --profile PROFILE_NAME
 DATABRICKS_CONFIG_PROFILE=PROFILE_NAME databricks COMMAND
 ```
 
-Why: without an explicit profile, commands may hit the wrong workspace and cause misleading not-found errors.
+Omitting the profile can silently target the wrong workspace.
 
-## Understanding User Goals
+## Discovering Available Resources
 
-Ask:
-
-1. What is the agent's purpose?
-2. What data or tools are required?
-3. Are there specific Databricks resources to connect?
-
-Use resource discovery when needed:
+Before wiring new tools, discover what already exists in your workspace:
 
 ```bash
 uv run discover-tools
 ```
 
-Then map requested capabilities to tool and permission changes in bundle config.
+This lists Genie spaces, serving endpoints, UC functions, and registered apps available to connect.
 
-## Deployment Errors
+## Adding Tools to the Orchestrator
 
-If `databricks bundle deploy` fails with app name conflict:
+All tool types are configured in `backend/agent.py` via the `SUBAGENTS` list. Each entry becomes a callable tool the orchestrator can route to.
 
-- Ask whether to bind existing app or delete and recreate.
-- If bind: follow `../.claude/skills/deploy/SKILL.md`.
-- If delete and recreate:
+| Tool type | Config field | Notes |
+| --------- | ------------ | ----- |
+| Genie space | `type: "genie"`, `space_id` | Routed via Databricks MCP server |
+| App agent | `type: "app"`, `endpoint` | Called via Responses API (`apps/<name>`) |
+| Serving endpoint | `type: "serving_endpoint"`, `endpoint` | Must have task type `agent/v1/responses` |
+
+After adding a tool entry, grant the corresponding resource permission in `resources/multiagent_app.yml` (shared default) and/or `targets/*.yml` (environment-specific override).
+
+## Deployment
+
+### Validate
 
 ```bash
-databricks apps delete APP_NAME --profile PROFILE_NAME
+databricks bundle validate -t dev --profile dev
+databricks bundle validate -t qa --profile qa
+databricks bundle validate -t stg --profile stg
+databricks bundle validate -t prod --profile prd
 ```
 
-## Supervisor API Notes
+### Deploy and start
 
-Supervisor API runs tool selection and loop server-side in Databricks.
+```bash
+databricks bundle deploy -t TARGET --profile PROFILE
+databricks bundle run multiagent_app --target TARGET
+```
+
+### App name conflict
+
+If deploy fails because the app already exists in the workspace:
+
+```bash
+# Bind the existing app to this bundle, then redeploy
+databricks bundle deployment bind multiagent_app APP_NAME --auto-approve
+databricks bundle deploy -t TARGET --profile PROFILE
+```
+
+To delete and recreate instead:
+
+```bash
+databricks apps delete APP_NAME --profile PROFILE
+databricks bundle deploy -t TARGET --profile PROFILE
+```
+
+## Supervisor API
+
+The Databricks Supervisor API runs tool selection and the agent loop server-side.
 
 Use when:
-
-- User wants hosted tools (Genie, UC functions, hosted endpoints)
-- User wants Databricks-managed loop execution
+- Connecting hosted tools (Genie, UC functions, serving endpoints)
+- Offloading the agent loop to Databricks infrastructure
 
 Limitations:
-
-- Tools run as app service principal
+- All tools run as the app service principal
 - Hosted tools and client-side function tools cannot be mixed in one request
 - Inference parameters are restricted when tools are attached
-- `stream` and `background` cannot both be true
-- Background mode max execution time is 30 minutes
+- `stream` and `background` cannot both be `true`
+- Background mode maximum execution time is 30 minutes
 
-Skills:
+## Long-Term Memory
 
-- `../.claude/skills/supervisor-api/SKILL.md`
-- `../.claude/skills/supervisor-api-background-mode/SKILL.md`
-
-## Long-Term Memory (Managed)
-
-Managed memory uses Databricks memory-store APIs and is currently beta.
-
-Use when the user needs cross-session memory without operating custom storage.
-
-Skills:
-
-- `../.claude/skills/managed-memory/SKILL.md`
+Managed memory uses Databricks memory-store APIs (currently beta). Use it for cross-session agent memory without operating custom storage infrastructure. Configure via environment variables and the `resources/multiagent_app.yml` bundle resource.
 
 ## Agent Evaluation
 
-For evaluation workflows, recommend MLflow skills:
-
-- [MLflow Skills](https://github.com/mlflow/skills)
-
-Built-in local evaluation command:
+Run evaluation locally against the configured agent:
 
 ```bash
 uv run agent-evaluate
 ```
 
-## Available Skills
+Edit `backend/evaluate_agent.py` to define test cases and scoring criteria. Evaluation uses MLflow LLM judges (safety, relevance, fluency, tool correctness, etc.).
 
-Read the relevant skill file before executing related tasks.
-
-| Task | Skill | Path |
-| ---- | ----- | ---- |
-| Setup and auth | quickstart | `../.claude/skills/quickstart/SKILL.md` |
-| Discover resources | discover-tools | `../.claude/skills/discover-tools/SKILL.md` |
-| Create resources | create-tools | `../.claude/skills/create-tools/SKILL.md` |
-| Deploy | deploy | `../.claude/skills/deploy/SKILL.md` |
-| Add tools and permissions | add-tools | `../.claude/skills/add-tools/SKILL.md` |
-| Local run and testing | run-locally | `../.claude/skills/run-locally/SKILL.md` |
-| Modify agent | modify-agent | `../.claude/skills/modify-agent/SKILL.md` |
-| Managed memory | managed-memory | `../.claude/skills/managed-memory/SKILL.md` |
-| Supervisor API | supervisor-api | `../.claude/skills/supervisor-api/SKILL.md` |
-| Background mode | supervisor-api-background-mode | `../.claude/skills/supervisor-api-background-mode/SKILL.md` |
-
-## Quick Commands
+## Quick Reference
 
 | Task | Command |
 | ---- | ------- |
-| Setup | `uv run quickstart` |
-| Discover tools | `uv run discover-tools` |
+| Initial setup | `uv run quickstart` |
+| Discover resources | `uv run discover-tools` |
 | Run locally | `uv run start-app` |
-| Deploy app | `databricks bundle deploy && databricks bundle run agent_openai_agents_sdk_multiagent` |
-| View logs | `databricks apps logs APP_NAME --follow` |
-
-Environment-specific examples:
-
-- `databricks bundle validate -t dev --profile dev`
-- `databricks bundle validate -t qa --profile qa`
-- `databricks bundle validate -t stg --profile stg`
-- `databricks bundle validate -t prod --profile prd`
-- `databricks bundle deploy -t TARGET_NAME --profile PROFILE_NAME`
+| Backend only | `uv run start-server --reload` |
+| Validate bundle | `databricks bundle validate -t TARGET --profile PROFILE` |
+| Deploy | `databricks bundle deploy -t TARGET --profile PROFILE` |
+| Start deployed app | `databricks bundle run multiagent_app --target TARGET` |
+| View app logs | `databricks apps logs APP_NAME --follow` |
+| Run evaluation | `uv run agent-evaluate` |
 
 ## Key Files
 
 | File | Purpose |
 | ---- | ------- |
-| `agent_server/agent.py` | Orchestrator logic, tools, and variable configuration |
-| `agent_server/start_server.py` | FastAPI and MLflow Agent Server startup |
-| `agent_server/evaluate_agent.py` | Evaluation workflow |
+| `backend/agent.py` | Orchestrator logic, `SUBAGENTS` config, invoke/stream handlers |
+| `backend/start_server.py` | FastAPI and MLflow Agent Server startup |
+| `backend/evaluate_agent.py` | Evaluation test cases and scoring |
 | `databricks.yml` | Bundle root config and shared variables |
-| `resources/app.yml` | Shared app config and baseline permissions |
-| `targets/dev.yml` | Dev-specific workspace, variables, and overrides |
-| `targets/qa.yml` | QA-specific workspace, variables, and overrides |
-| `targets/stg.yml` | Staging-specific workspace, variables, and overrides |
-| `targets/prod.yml` | Prod-specific workspace, variables, and overrides |
+| `resources/multiagent_app.yml` | Shared app config and baseline resource permissions |
+| `targets/dev.yml` | Dev workspace, variables, and permission overrides |
+| `targets/qa.yml` | QA workspace, variables, and permission overrides |
+| `targets/stg.yml` | Staging workspace, variables, and permission overrides |
+| `targets/prod.yml` | Prod workspace, variables, and permission overrides |
 | `bitbucket-pipelines.yml` | CI/CD validate, deploy, and run flow |
-| `scripts/quickstart.py` | Setup automation script |
-| `scripts/discover_tools.py` | Resource discovery script |
-
-## Agent Framework Capabilities
-
-When adding any tool, also grant permissions in bundle config. Use shared defaults in `resources/app.yml` and target-specific overrides in `targets/*.yml`.
-
-Tool types:
-
-1. Unity Catalog function tools
-2. Agent code tools
-3. MCP tools
+| `scripts/quickstart.py` | Interactive setup automation |
+| `scripts/discover_tools.py` | Workspace resource discovery |

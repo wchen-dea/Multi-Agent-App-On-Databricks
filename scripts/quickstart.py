@@ -5,8 +5,8 @@ Quickstart setup script for Databricks agent development.
 NOTE: Keep this comment up to date when editing the script.
 
 Steps:
-  1. Check prerequisites — uv, Node.js (>=20.19/22.12/23), npm, Databricks CLI.
-     Exit if any are missing or Node version is unsupported by Vite.
+  1. Check prerequisites — uv, Databricks CLI.
+     Exit if any are missing.
   2. Set up .env — copy .env.example → .env (or create a minimal one).
   3. Databricks auth — use --profile if provided, otherwise list existing profiles
      for interactive selection, or create a new DEFAULT profile with --host / prompt.
@@ -140,8 +140,6 @@ def check_prerequisites() -> dict[str, bool]:
 
     prereqs = {
         "uv": command_exists("uv"),
-        "node": command_exists("node"),
-        "npm": command_exists("npm"),
         "databricks": command_exists("databricks"),
     }
 
@@ -150,10 +148,6 @@ def check_prerequisites() -> dict[str, bool]:
             try:
                 if name == "uv":
                     version = get_command_output(["uv", "--version"])
-                elif name == "node":
-                    version = get_command_output(["node", "--version"])
-                elif name == "npm":
-                    version = get_command_output(["npm", "--version"])
                 elif name == "databricks":
                     version = get_command_output(["databricks", "--version"])
                 print_success(f"{name} is installed: {version}")
@@ -172,9 +166,6 @@ def check_missing_prerequisites(prereqs: dict[str, bool]) -> list[str]:
     if not prereqs["uv"]:
         missing.append("uv - Install with: curl -LsSf https://astral.sh/uv/install.sh | sh")
 
-    if not prereqs["node"] or not prereqs["npm"]:
-        missing.append("Node.js 20 - Install with: nvm install 20 (or download from nodejs.org)")
-
     if not prereqs["databricks"]:
         if platform.system() == "Darwin":
             missing.append("Databricks CLI - Install with: brew install databricks/tap/databricks")
@@ -189,72 +180,6 @@ def check_missing_prerequisites(prereqs: dict[str, bool]) -> list[str]:
         )
 
     return missing
-
-
-def check_node_version() -> str | None:
-    """Check if the installed Node.js version meets Vite's requirements.
-
-    Vite requires Node.js >=20.19, >=22.12, or >=23.
-    Node 21.x is an odd-numbered release and not supported.
-
-    Returns None if the version is OK, or an error string if not.
-    """
-    if not command_exists("node"):
-        return None  # Missing node is handled by check_missing_prerequisites
-
-    try:
-        version_str = get_command_output(["node", "--version"])
-    except Exception:
-        return None
-
-    match = re.match(r"v(\d+)\.(\d+)\.(\d+)", version_str)
-    if not match:
-        return None
-
-    major, minor = int(match.group(1)), int(match.group(2))
-
-    # Node 21.x is odd-numbered and not a Vite target
-    if major == 21:
-        return (
-            f"Node.js {version_str} is not supported by Vite (odd-numbered release).\n"
-            "  Please install Node.js 20.19+, 22.12+, or 23+.\n"
-            "  Run: nvm install 22"
-        )
-
-    # Check supported version ranges
-    if major == 20 and minor >= 19:
-        return None
-    if major == 22 and minor >= 12:
-        return None
-    if major >= 23:
-        return None
-
-    # Version is too old or unsupported
-    if major == 20:
-        return (
-            f"Node.js {version_str} is too old for Vite (requires 20.19+).\n"
-            f"  Your version: {version_str}\n"
-            "  Run: nvm install 20  (to get latest 20.x)"
-        )
-    if major == 22:
-        return (
-            f"Node.js {version_str} is too old for Vite (requires 22.12+).\n"
-            f"  Your version: {version_str}\n"
-            "  Run: nvm install 22  (to get latest 22.x)"
-        )
-
-    if major < 20:
-        return (
-            f"Node.js {version_str} is too old for Vite (requires 20.19+).\n"
-            f"  Your version: {version_str}\n"
-            "  Run: nvm install 22"
-        )
-
-    return (
-        f"Node.js {version_str} is not supported by Vite.\n"
-        "  Vite requires Node.js 20.19+, 22.12+, or 23+.\n"
-        "  Run: nvm install 22"
-    )
 
 
 def setup_env_file() -> None:
@@ -1579,12 +1504,6 @@ Examples:
             print("\nPlease install the missing prerequisites and run this script again.")
             sys.exit(1)
 
-        # Check Node.js version meets Vite requirements
-        node_error = check_node_version()
-        if node_error:
-            print_error(f"Node.js version check failed:\n  {node_error}")
-            sys.exit(1)
-
         # Step 2: Set up .env
         setup_env_file()
 
@@ -1785,7 +1704,7 @@ Examples:
 
         print_header("Setup Complete!")
         summary = f"""
-✓ Prerequisites verified (uv, Node.js, Databricks CLI)
+✓ Prerequisites verified (uv, Databricks CLI)
 ✓ Databricks authenticated with profile: {profile_name}
 ✓ Configuration files created (.env)
 
@@ -1811,8 +1730,8 @@ Examples:
                     summary += f"\n\n✓ Lakebase for {lakebase_purpose}: autoscaling"
 
         summary += "\nNext step (backend only): Run 'uv run start-server' to start the agent locally"
-        summary += "\nOptional UI mode: Run 'uv run start-app --no-ui' to use the app launcher without cloning the frontend template"
-        summary += "\nIf you run 'uv run start-app' (without --no-ui), it will download e2e-chatbot-app-next for the local chat UI.\n"
+        summary += "\nRun 'uv run start-app' to start the backend + Chainlit chat UI together."
+        summary += "\nRun 'uv run start-app --no-ui' to start the backend only.\n"
         print(summary)
 
     except KeyboardInterrupt:

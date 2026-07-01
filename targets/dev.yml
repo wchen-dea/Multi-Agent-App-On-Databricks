@@ -14,8 +14,8 @@ targets:
       target_app_name: "<DEV-TARGET-APP-NAME>"
     resources:
       apps:
-        agent_openai_agents_sdk_multiagent:
-          name: ${var.app_name}
+        multiagent_app:
+          name: MULTIAGENT_APP
           resources:
           - name: experiment
             experiment:

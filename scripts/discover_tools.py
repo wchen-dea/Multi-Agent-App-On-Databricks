@@ -12,12 +12,16 @@ This script scans for:
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
 from databricks.sdk import WorkspaceClient
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
 
 DEFAULT_MAX_RESULTS = 100
 DEFAULT_MAX_SCHEMAS = 25
@@ -378,9 +382,9 @@ def main():
     print("Discovering available tools and data sources...", file=sys.stderr)
 
     # Initialize Databricks workspace client
-    # Only pass profile if specified, otherwise use default
-    if args.profile:
-        w = WorkspaceClient(profile=args.profile)
+    profile = args.profile or os.environ.get("DATABRICKS_CONFIG_PROFILE")
+    if profile:
+        w = WorkspaceClient(profile=profile)
     else:
         w = WorkspaceClient()
 

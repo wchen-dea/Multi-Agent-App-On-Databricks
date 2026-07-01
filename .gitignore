@@ -76,3 +76,7 @@ docs/_build/
 !.claude/skills/supervisor-api/
 !.claude/skills/supervisor-api-background-mode/
 !.claude/skills/supervisor-api-client-function-calling/
+
+# Chainlit — ignore auto-generated config and runtime files
+.chainlit/
+chainlit.md
