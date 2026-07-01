@@ -18,7 +18,7 @@ The runtime is built with MLflow Agent Server and OpenAI Agents SDK.
 - `backend/utils.py`: helper functions for MCP URLs, session metadata, and stream event processing.
 - `scripts/start_app.py`: local process manager for backend and optional frontend chat UI.
 - `frontend/chainlit_app.py`: Chainlit chat UI (served locally via `uv run start-app`).
-- `resources/multiagent_app.yml`: shared Databricks app/resource defaults.
+- `resources/multiagent-app.yml`: shared Databricks app/resource defaults.
 - `targets/*.yml`: environment-specific workspace, identity, and permission overrides.
 
 ## Request Flow
@@ -62,7 +62,7 @@ Each target defines:
 
 ## Permissions Model
 
-Shared defaults are defined in `resources/multiagent_app.yml`.
+Shared defaults are defined in `resources/multiagent-app.yml`.
 Target-specific permission and identity differences are defined in `targets/*.yml` under target-level `resources` overrides.
 
 Current pattern:

@@ -53,7 +53,7 @@ definitions:
       - databricks bundle validate --target "$DAB_TARGET"
       - databricks bundle deploy --target "$DAB_TARGET"
       # bundle deploy uploads/configures, bundle run restarts app with new code
-      - databricks bundle run multiagent_app --target "$DAB_TARGET"
+      - databricks bundle run multiagent-app --target "$DAB_TARGET"
 pipelines:
   branches:
     dev:

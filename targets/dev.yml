@@ -7,12 +7,12 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:
-      app_name: MULTIAGENT_APP
+      app_name: multiagent-app-dev
       genie_space_id: "01f159f5d91419549020e3609add391c"
     resources:
       apps:
-        multiagent_app:
-          name: MULTIAGENT_APP
+        multiagent-app:
+          name: multiagent-app-dev
           resources:
           - name: experiment
             experiment:

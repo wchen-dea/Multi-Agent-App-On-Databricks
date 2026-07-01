@@ -46,7 +46,7 @@ All tool types are configured in `backend/agent.py` via the `SUBAGENTS` list. Ea
 | App agent | `type: "app"`, `endpoint` | Called via Responses API (`apps/<name>`) |
 | Serving endpoint | `type: "serving_endpoint"`, `endpoint` | Must have task type `agent/v1/responses` |
 
-After adding a tool entry, grant the corresponding resource permission in `resources/multiagent_app.yml` (shared default) and/or `targets/*.yml` (environment-specific override).
+After adding a tool entry, grant the corresponding resource permission in `resources/multiagent-app.yml` (shared default) and/or `targets/*.yml` (environment-specific override).
 
 ## Deployment
 
@@ -63,7 +63,7 @@ databricks bundle validate -t prod --profile prd
 
 ```bash
 databricks bundle deploy -t TARGET --profile PROFILE
-databricks bundle run multiagent_app --target TARGET
+databricks bundle run multiagent-app --target TARGET
 ```
 
 ### App name conflict
@@ -72,7 +72,7 @@ If deploy fails because the app already exists in the workspace:
 
 ```bash
 # Bind the existing app to this bundle, then redeploy
-databricks bundle deployment bind multiagent_app APP_NAME --auto-approve
+databricks bundle deployment bind multiagent-app APP_NAME --auto-approve
 databricks bundle deploy -t TARGET --profile PROFILE
 ```
 
@@ -100,7 +100,7 @@ Limitations:
 
 ## Long-Term Memory
 
-Managed memory uses Databricks memory-store APIs (currently beta). Use it for cross-session agent memory without operating custom storage infrastructure. Configure via environment variables and the `resources/multiagent_app.yml` bundle resource.
+Managed memory uses Databricks memory-store APIs (currently beta). Use it for cross-session agent memory without operating custom storage infrastructure. Configure via environment variables and the `resources/multiagent-app.yml` bundle resource.
 
 ## Agent Evaluation
 
@@ -122,7 +122,7 @@ Edit `backend/evaluate_agent.py` to define test cases and scoring criteria. Eval
 | Backend only | `uv run start-server --reload` |
 | Validate bundle | `databricks bundle validate -t TARGET --profile PROFILE` |
 | Deploy | `databricks bundle deploy -t TARGET --profile PROFILE` |
-| Start deployed app | `databricks bundle run multiagent_app --target TARGET` |
+| Start deployed app | `databricks bundle run multiagent-app --target TARGET` |
 | View app logs | `databricks apps logs APP_NAME --follow` |
 | Run evaluation | `uv run agent-evaluate` |
 
@@ -134,7 +134,7 @@ Edit `backend/evaluate_agent.py` to define test cases and scoring criteria. Eval
 | `backend/start_server.py` | FastAPI and MLflow Agent Server startup |
 | `backend/evaluate_agent.py` | Evaluation test cases and scoring |
 | `databricks.yml` | Bundle root config and shared variables |
-| `resources/multiagent_app.yml` | Shared app config and baseline resource permissions |
+| `resources/multiagent-app.yml` | Shared app config and baseline resource permissions |
 | `targets/dev.yml` | Dev workspace, variables, and permission overrides |
 | `targets/qa.yml` | QA workspace, variables, and permission overrides |
 | `targets/stg.yml` | Staging workspace, variables, and permission overrides |

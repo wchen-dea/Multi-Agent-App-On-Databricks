@@ -1,5 +1,5 @@
 bundle:
-  name: multiagent_app_on_databricks
+  name: multiagent-app_on_databricks
   uuid: ad3ec8f6-1ff5-4bb2-bbb7-056bd09c43a8
 include:
 - resources/*.yml
@@ -25,9 +25,13 @@ variables:
     default: "300"
   genie_space_id:
     description: Genie space ID for the current environment
+    default: ""
   knowledge_assistant_endpoint_name:
     description: Knowledge assistant serving endpoint name for the current environment
+    default: ""
   serving_endpoint_name:
     description: Primary serving endpoint name for the current environment
+    default: ""
   target_app_name:
     description: Target Databricks app name granted CAN_USE for the current environment
+    default: ""

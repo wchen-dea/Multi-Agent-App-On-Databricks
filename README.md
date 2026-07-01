@@ -32,7 +32,7 @@ The orchestrator selects tools dynamically based on user intent and the routing 
 - `backend/`: orchestrator code, invoke and stream handlers, server startup, evaluation
 - `frontend/chainlit_app.py`: Chainlit chat UI for local development
 - `scripts/`: quickstart, preflight, start app, and discovery utilities
-- `resources/multiagent_app.yml`: shared Databricks app resource definition
+- `resources/multiagent-app.yml`: shared Databricks app resource definition
 - `targets/*.yml`: environment-specific overrides (workspace, variables, permissions)
 - `databricks.yml`: bundle root configuration and include orchestration
 - `bitbucket-pipelines.yml`: CI/CD workflow for target-based deployment
@@ -128,17 +128,17 @@ uv run agent-evaluate
 This project deploys with Databricks Declarative Automation Bundles.
 
 - `databricks.yml` defines bundle metadata, include paths, and global variables.
-- `resources/multiagent_app.yml` defines shared app config and baseline resources.
+- `resources/multiagent-app.yml` defines shared app config and baseline resources.
 - `targets/dev.yml`, `targets/qa.yml`, `targets/stg.yml`, and `targets/prod.yml` define environment overrides.
 
 ### Target summary
 
 | Target | Mode | App name |
 | ------ | ---- | -------- |
-| dev | development | `MULTIAGENT_APP-dev` |
-| qa | development | `MULTIAGENT_APP-qa` |
-| stg | production | `MULTIAGENT_APP-stg` |
-| prod | production | `MULTIAGENT_APP` |
+| dev | development | `multiagent-app-dev` |
+| qa | development | `multiagent-app-qa` |
+| stg | production | `multiagent-app-stg` |
+| prod | production | `multiagent-app` |
 
 ### Manual deploy commands
 
@@ -163,7 +163,7 @@ databricks bundle deploy -t prod --profile prd
 Start or restart app after deploy:
 
 ```bash
-databricks bundle run multiagent_app --target dev
+databricks bundle run multiagent-app --target dev
 ```
 
 Replace `dev` with `qa`, `stg`, or `prod` as needed.
@@ -214,7 +214,7 @@ from databricks_openai import DatabricksOpenAI
 
 w = WorkspaceClient()
 client = DatabricksOpenAI(workspace_client=w)
-APP_NAME = "MULTIAGENT_APP-dev"
+APP_NAME = "multiagent-app-dev"
 
 response = client.responses.create(
   model=f"apps/{APP_NAME}",
@@ -243,7 +243,7 @@ curl --request POST \
 If deploy fails because an app already exists, bind it to the bundle:
 
 ```bash
-databricks bundle deployment bind multiagent_app "$APP_NAME" --auto-approve
+databricks bundle deployment bind multiagent-app "$APP_NAME" --auto-approve
 databricks bundle deploy -t "$TARGET" --profile "$PROFILE"
 ```
 

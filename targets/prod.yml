@@ -6,15 +6,15 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:
-      app_name: MULTIAGENT_APP
+      app_name: multiagent-app
       genie_space_id: "<PROD-GENIE-SPACE-ID>"
       knowledge_assistant_endpoint_name: "<PROD-KNOWLEDGE-ASSISTANT-ENDPOINT>"
       serving_endpoint_name: "<PROD-SERVING-ENDPOINT>"
       target_app_name: "<PROD-TARGET-APP-NAME>"
     resources:
       apps:
-        multiagent_app:
-          name: MULTIAGENT_APP
+        multiagent-app:
+          name: multiagent-app
           resources:
           - name: experiment
             experiment:

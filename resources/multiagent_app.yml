@@ -1,6 +1,6 @@
 resources:
   apps:
-    multiagent_app:
+    multiagent-app:
       name: ${var.app_name}
       description: "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
       source_code_path: ./

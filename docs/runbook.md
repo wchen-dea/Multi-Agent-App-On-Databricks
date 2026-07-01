@@ -23,7 +23,7 @@ Does not cover:
 
 - Runtime: MLflow Agent Server + OpenAI Agents SDK
 - Deploy model: Databricks Declarative Automation Bundles
-- Shared resource config: `resources/multiagent_app.yml`
+- Shared resource config: `resources/multiagent-app.yml`
 - Environment overrides: `targets/dev.yml`, `targets/qa.yml`, `targets/stg.yml`, `targets/prod.yml`
 - CI/CD: `bitbucket-pipelines.yml`
 
@@ -105,7 +105,7 @@ databricks bundle deploy -t prod --profile prd
 ### 3) Restart app runtime
 
 ```bash
-databricks bundle run multiagent_app --target dev
+databricks bundle run multiagent-app --target dev
 ```
 
 Replace `dev` with `qa`, `stg`, or `prod` as required.
@@ -128,7 +128,7 @@ Pipeline stages (shared definition):
 3. Export target-specific credentials
 4. `databricks bundle validate`
 5. `databricks bundle deploy`
-6. `databricks bundle run multiagent_app`
+6. `databricks bundle run multiagent-app`
 
 ## Post-Deploy Verification
 
@@ -166,7 +166,7 @@ Use one of the following methods:
 
 ```bash
 databricks bundle deploy -t TARGET_NAME --profile PROFILE_NAME
-databricks bundle run multiagent_app --target TARGET_NAME
+databricks bundle run multiagent-app --target TARGET_NAME
 ```
 
 3. Verify using post-deploy checks
@@ -198,7 +198,7 @@ databricks bundle run multiagent_app --target TARGET_NAME
   - Action: bind existing app to bundle, then redeploy
 - Deploy succeeded but old behavior persists
   - Symptom: code/config not reflected at runtime
-  - Action: run `databricks bundle run multiagent_app --target TARGET_NAME`
+  - Action: run `databricks bundle run multiagent-app --target TARGET_NAME`
 - Query returns auth/redirect errors
   - Symptom: query failures with 302/auth behavior
   - Action: verify OAuth token flow and endpoint URL
