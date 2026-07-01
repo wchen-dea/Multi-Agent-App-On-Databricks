@@ -8,6 +8,8 @@ include:
 variables:
   app_name:
     description: Databricks app name for the current environment
+  mlflow_experiment_id:
+    description: MLflow experiment ID for tracing/evaluation in the current environment
   mlflow_tracking_uri:
     description: MLFLOW_TRACKING_URI for the app
     default: databricks
