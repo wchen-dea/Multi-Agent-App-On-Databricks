@@ -1810,7 +1810,9 @@ Examples:
                 else:
                     summary += f"\n\n✓ Lakebase for {lakebase_purpose}: autoscaling"
 
-        summary += "\nNext step: Run 'uv run start-app' to start the agent locally\n"
+        summary += "\nNext step (backend only): Run 'uv run start-server' to start the agent locally"
+        summary += "\nOptional UI mode: Run 'uv run start-app --no-ui' to use the app launcher without cloning the frontend template"
+        summary += "\nIf you run 'uv run start-app' (without --no-ui), it will download e2e-chatbot-app-next for the local chat UI.\n"
         print(summary)
 
     except KeyboardInterrupt:

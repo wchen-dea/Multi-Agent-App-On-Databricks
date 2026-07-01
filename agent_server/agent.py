@@ -98,10 +98,10 @@ SUBAGENTS = [
     # },
 ]
 
-assert SUBAGENTS, (
-    "Configure at least one subagent in SUBAGENTS above. "
-    "Uncomment an entry and replace Variable values. See README.md."
-)
+if not SUBAGENTS:
+    logging.getLogger(__name__).warning(
+        "No subagents configured in SUBAGENTS. Running without backend routing tools until configured."
+    )
 
 # ---------------------------------------------------------------------------
 # Client setup
