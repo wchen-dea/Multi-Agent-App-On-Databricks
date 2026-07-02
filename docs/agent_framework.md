@@ -2,6 +2,13 @@
 
 Prefer pragmatic, incremental changes that keep local iteration fast and deployment predictable across `dev`, `qa`, `stg`, and `prod`.
 
+## Current Status (2026-07-01)
+
+- Dev environment is running with user-facing UI enabled.
+- Hosted startup path uses `uv run start-app`; no `--no-ui` override in app runtime.
+- If `databricks bundle deploy` fails due to Terraform provider registry access, use `databricks bundle sync` then direct `databricks apps deploy` from the app default source path.
+- Genie integration now depends on both SQL warehouse `CAN_USE` and Unity Catalog object privileges for queried tables.
+
 ## First-Time Setup
 
 1. Check whether `.env` exists. If not, run:
@@ -64,6 +71,14 @@ databricks bundle validate -t prod --profile prd
 ```bash
 databricks bundle deploy -t TARGET --profile PROFILE
 databricks bundle run multiagent-app --target TARGET
+```
+
+### Deploy fallback when Terraform registry is unavailable
+
+```bash
+databricks bundle sync -t TARGET --profile PROFILE
+APP_SRC=$(databricks apps get APP_NAME --output json --profile PROFILE | jq -r '.default_source_code_path')
+databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
 ### App name conflict

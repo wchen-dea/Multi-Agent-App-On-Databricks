@@ -19,6 +19,14 @@ Does not cover:
 - Full enterprise SRE process integration
 - Custom organization-specific on-call escalation tooling
 
+## Current Status (2026-07-01)
+
+- Dev app is currently running and user-accessible via Chainlit UI.
+- Hosted runtime uses UI mode with internal backend port remapping to avoid 8000/8000 collisions.
+- Bundle validation is healthy; deployment can intermittently fail when Terraform provider registry is unreachable.
+- Operational workaround in dev is bundle sync + direct apps deploy from app default source path.
+- Genie permissions in dev now include SQL warehouse access and required Unity Catalog grants for key reporting tables.
+
 ## System Summary
 
 - Runtime: MLflow Agent Server + OpenAI Agents SDK
@@ -199,6 +207,12 @@ databricks bundle run multiagent-app --target TARGET_NAME
 - Deploy succeeded but old behavior persists
   - Symptom: code/config not reflected at runtime
   - Action: run `databricks bundle run multiagent-app --target TARGET_NAME`
+- Terraform provider registry unreachable during bundle deploy
+  - Symptom: `Failed to query available provider packages` against `registry.terraform.io`
+  - Action: run `databricks bundle sync` then `databricks apps deploy APP_NAME --source-code-path <default_source_code_path> --mode SNAPSHOT`
+- Genie query fails with table permission errors
+  - Symptom: missing `SELECT` or `USE CATALOG`/`USE SCHEMA` on UC objects
+  - Action: grant catalog/schema usage plus table `SELECT` to both the user and app service principal used by the chat/app
 - Query returns auth/redirect errors
   - Symptom: query failures with 302/auth behavior
   - Action: verify OAuth token flow and endpoint URL

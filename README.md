@@ -14,6 +14,15 @@
 | Observability | Baseline | MLflow tracing and logs are available; SLO dashboards are not fully productized. |
 | Security | Baseline | Resource permissions and target-level overrides are defined per environment. |
 
+## Current Status (2026-07-01)
+
+- Dev app is running and user-accessible with Chainlit UI.
+- Hosted startup uses `uv run start-app` with runtime port split (frontend public, backend internal) to avoid bind conflicts.
+- Bundle validation is healthy for `dev`.
+- In this environment, `databricks bundle deploy` can intermittently fail due to Terraform provider registry connectivity.
+- Operational rollout fallback is `databricks bundle sync` plus direct `databricks apps deploy` from the bundle source path.
+- Genie access dependencies were remediated for dev by granting SQL warehouse `CAN_USE`, catalog/schema usage, and table-level `SELECT`.
+
 ## What This Project Does
 
 This repository contains a Databricks-hosted orchestrator agent that routes user requests to multiple backends from one app endpoint.
@@ -158,6 +167,14 @@ databricks bundle deploy -t dev --profile dev
 databricks bundle deploy -t qa --profile qa
 databricks bundle deploy -t stg --profile stg
 databricks bundle deploy -t prod --profile prd
+```
+
+Fallback when Terraform provider registry is unreachable:
+
+```bash
+databricks bundle sync -t dev --profile dev
+APP_SRC=$(databricks apps get multiagent-app-dev --output json --profile dev | jq -r '.default_source_code_path')
+databricks apps deploy multiagent-app-dev --profile dev --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
 Start or restart app after deploy:

@@ -21,7 +21,6 @@ resources:
           value: ${var.mlflow_experiment_id}
       # Resources which this app has access to
       resources:
-      # TODO: Set your Genie space ID
       - name: 'genie_space'
         genie_space:
           name: 'Genie Space'

@@ -11,6 +11,14 @@ It routes user requests to one or more backend capabilities:
 
 The runtime is built with MLflow Agent Server and OpenAI Agents SDK.
 
+## Current Status (2026-07-01)
+
+- Dev deployment is live and serving the Chainlit UI.
+- Hosted app startup is `uv run start-app`, with frontend on app port and backend moved to an internal port at runtime.
+- Bundle validation is stable; bundle deployment may be affected by transient Terraform provider registry connectivity.
+- Direct app deployment from synced bundle source is used as an operational fallback when needed.
+- Genie warehouse and Unity Catalog permissions were updated for both user and app service principal in dev.
+
 ## Core Components
 
 - `backend/start_server.py`: boots MLflow `AgentServer` (`ResponsesAgent`) and exposes the app.

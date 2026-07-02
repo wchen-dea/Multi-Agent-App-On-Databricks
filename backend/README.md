@@ -2,6 +2,12 @@
 
 Multi-agent orchestrator server. Exposes the MLflow Responses API (`/invocations`) via FastAPI/Uvicorn and routes user requests to one or more configured backends.
 
+## Current Status (2026-07-01)
+
+- Backend is running in dev Databricks Apps and reachable through the UI and API routes.
+- Hosted runtime currently uses UI mode with backend port remapping handled by `scripts/start_app.py`.
+- Genie routing requires SQL warehouse access plus Unity Catalog `USE CATALOG`/`USE SCHEMA` and `SELECT` on referenced tables.
+
 ## Files
 
 | File | Description |
