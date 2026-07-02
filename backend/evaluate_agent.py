@@ -18,18 +18,18 @@ from mlflow.genai.scorers import (
 from mlflow.genai.simulators import ConversationSimulator
 from mlflow.types.responses import ResponsesAgentRequest
 
-# Load environment variables from .env if it exists
+# Load environment variables from .env when available.
 load_dotenv(dotenv_path=".env", override=True)
 logging.getLogger("mlflow.utils.autologging_utils").setLevel(logging.ERROR)
 
-# need to import agent for our @invoke-registered function to be found
+# Import the agent module so @invoke-registered handlers are discoverable.
 from backend import agent  # noqa: F401
 
-# Create your evaluation dataset
-# Refer to documentation for evaluations:
-# Scorers: https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/concepts/scorers
-# Predefined LLM scorers: https://mlflow.org/docs/latest/genai/eval-monitor/scorers/llm-judge/predefined
-# Defining custom scorers: https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/custom-scorers
+# Evaluation dataset.
+# Scorer documentation:
+# https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/concepts/scorers
+# https://mlflow.org/docs/latest/genai/eval-monitor/scorers/llm-judge/predefined
+# https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/custom-scorers
 test_cases = [
     {
         "goal": "Learn about the main dishes of Vietnamese cuisine",
@@ -54,16 +54,16 @@ simulator = ConversationSimulator(
     user_model="databricks:/databricks-claude-sonnet-4-5",
 )
 
-# Get the invoke function that was registered via @invoke decorator in your agent
+# Retrieve the invoke function registered by the @invoke decorator.
 invoke_fn = get_invoke_function()
 assert invoke_fn is not None, (
     "No function registered with the `@invoke` decorator found."
     "Ensure you have a function decorated with `@invoke()`."
 )
 
-# if invoke function is async, wrap it in a sync function.
-# The simulator may already be running an event loop, so we use nest_asyncio
-# to allow nested run_until_complete() calls without deadlocking.
+# If invoke_fn is async, wrap it in a sync adapter.
+# The simulator may already own an event loop; nest_asyncio avoids deadlocks
+# when run_until_complete is called in that environment.
 if asyncio.iscoroutinefunction(invoke_fn):
     import nest_asyncio
 

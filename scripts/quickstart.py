@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Quickstart setup script for Databricks agent development.
+Set up Databricks agent development with a guided quickstart workflow.
 
-NOTE: Keep this comment up to date when editing the script.
+Maintain this summary when editing the script.
 
 Steps:
   1. Check prerequisites — uv, Databricks CLI.
@@ -56,7 +56,14 @@ from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 
 def _load_yml(path: Path):
-    """Load a YAML file in round-trip mode (preserves comments and formatting)."""
+    """Load a YAML file in round-trip mode.
+
+    Args:
+        path: Path to the YAML file.
+
+    Returns:
+        Tuple of YAML loader instance and parsed YAML data.
+    """
     yaml = YAML()
     yaml.preserve_quotes = True
     yaml.indent(sequence=4, offset=2)
@@ -65,34 +72,57 @@ def _load_yml(path: Path):
 
 
 def _save_yml(yaml: YAML, data, path: Path) -> None:
-    """Write YAML back to file using the same loader instance (preserves formatting)."""
+    """Write YAML back to disk using the same loader instance.
+
+    Args:
+        yaml: Configured ruamel YAML loader.
+        data: YAML data structure to persist.
+        path: Destination YAML file path.
+    """
     with open(path, "w") as f:
         yaml.dump(data, f)
 
 
 def print_header(text: str) -> None:
-    """Print a section header."""
+    """Print a section header.
+
+    Args:
+        text: Header title text.
+    """
     print(f"\n{'=' * 67}")
     print(text)
     print("=" * 67)
 
 
 def print_step(text: str) -> None:
-    """Print a step indicator."""
+    """Print a step indicator.
+
+    Args:
+        text: Step text to display.
+    """
     print(f"\n{text}")
 
 
 def print_success(text: str) -> None:
-    """Print a success message."""
+    """Print a success message.
+
+    Args:
+        text: Success message content.
+    """
     print(f"✓ {text}")
 
 
 def print_error(text: str) -> None:
-    """Print an error message."""
+    """Print an error message.
+
+    Args:
+        text: Error message content.
+    """
     print(f"✗ {text}", file=sys.stderr)
 
 
 def print_troubleshooting_auth() -> None:
+    """Print troubleshooting guidance for authentication failures."""
     print("\nTroubleshooting tips:")
     print("  • Ensure you have network connectivity to your Databricks workspace")
     print("  • Try running 'databricks auth login' manually to see detailed errors")
@@ -101,6 +131,7 @@ def print_troubleshooting_auth() -> None:
 
 
 def print_troubleshooting_api() -> None:
+    """Print troubleshooting guidance for API and connectivity failures."""
     print("\nTroubleshooting tips:")
     print("  • Your authentication token may have expired - try 'databricks auth login' to refresh")
     print("  • Verify your profile is valid with 'databricks auth profiles'")
@@ -108,7 +139,14 @@ def print_troubleshooting_api() -> None:
 
 
 def command_exists(cmd: str) -> bool:
-    """Check if a command exists in PATH."""
+    """Check whether a command exists in PATH.
+
+    Args:
+        cmd: Command name.
+
+    Returns:
+        True when the command is available in PATH.
+    """
     return shutil.which(cmd) is not None
 
 
@@ -119,7 +157,18 @@ def run_command(
     env: dict = None,
     show_output: bool = False,
 ) -> subprocess.CompletedProcess:
-    """Run a command and return the result."""
+    """Run a subprocess command.
+
+    Args:
+        cmd: Command and arguments.
+        capture_output: Whether to capture stdout and stderr.
+        check: Whether to raise on non-zero exit codes.
+        env: Optional environment overrides.
+        show_output: Whether to stream output directly.
+
+    Returns:
+        Completed subprocess result.
+    """
     merged_env = {**os.environ, **(env or {})}
     if show_output:
         return subprocess.run(cmd, check=check, env=merged_env)
@@ -129,13 +178,25 @@ def run_command(
 
 
 def get_command_output(cmd: list[str], env: dict = None) -> str:
-    """Run a command and return its stdout."""
+    """Run a command and return stripped standard output.
+
+    Args:
+        cmd: Command and arguments.
+        env: Optional environment overrides.
+
+    Returns:
+        Stripped standard output text.
+    """
     result = run_command(cmd, env=env)
     return result.stdout.strip()
 
 
 def check_prerequisites() -> dict[str, bool]:
-    """Check which prerequisites are installed."""
+    """Check whether required tools are installed.
+
+    Returns:
+        Mapping of prerequisite names to installation status.
+    """
     print_step("Checking prerequisites...")
 
     prereqs = {
@@ -160,7 +221,14 @@ def check_prerequisites() -> dict[str, bool]:
 
 
 def check_missing_prerequisites(prereqs: dict[str, bool]) -> list[str]:
-    """Return list of missing prerequisites with install instructions."""
+    """Build install instructions for missing prerequisites.
+
+    Args:
+        prereqs: Mapping of prerequisite names to installation status.
+
+    Returns:
+        List of human-readable install guidance lines.
+    """
     missing = []
 
     if not prereqs["uv"]:
@@ -183,7 +251,7 @@ def check_missing_prerequisites(prereqs: dict[str, bool]) -> list[str]:
 
 
 def setup_env_file() -> None:
-    """Copy .env.example to .env if it doesn't exist."""
+    """Create a project .env file when missing."""
     print_step("Setting up configuration files...")
 
     env_local = Path(".env")
@@ -195,7 +263,7 @@ def setup_env_file() -> None:
         shutil.copy(env_example, env_local)
         print_success("Copied .env.example to .env")
     else:
-        # Create a minimal .env
+        # Create a minimal .env file.
         env_local.write_text(
             "# Databricks configuration\n"
             "DATABRICKS_CONFIG_PROFILE=DEFAULT\n"
@@ -228,18 +296,18 @@ def update_env_file(key: str, value: str) -> None:
     has_commented = re.search(commented_pattern, content, re.MULTILINE)
 
     if has_commented:
-        # Replace at the commented line's position. Remove all active and
-        # commented duplicates, then insert the value where the first
-        # commented line was.
+        # Replace at the commented line position. Remove duplicate active and
+        # commented entries, then insert the new value at the first commented
+        # position.
         insert_pos = has_commented.start()
         content = re.sub(commented_pattern + r"\n?", "", content, flags=re.MULTILINE)
         content = re.sub(active_pattern + r"\n?", "", content, flags=re.MULTILINE)
         content = content[:insert_pos] + f"{key}={value}\n" + content[insert_pos:]
     elif has_active:
-        # No commented line — replace the active line in-place
+        # No commented line exists; replace the active line in place.
         content = re.sub(active_pattern, f"{key}={value}", content, flags=re.MULTILINE)
     else:
-        # Key doesn't exist at all — append
+        # Key does not exist; append a new entry.
         if not content.endswith("\n"):
             content += "\n"
         content += f"{key}={value}\n"
@@ -248,21 +316,25 @@ def update_env_file(key: str, value: str) -> None:
 
 
 def get_databricks_profiles() -> list[dict]:
-    """Get list of existing Databricks profiles."""
+    """List existing Databricks CLI profiles.
+
+    Returns:
+        List of profile entries with name and raw display line.
+    """
     try:
         result = run_command(["databricks", "auth", "profiles"], check=False)
         if result.returncode != 0 or not result.stdout.strip():
             return []
 
         lines = result.stdout.strip().split("\n")
-        if len(lines) <= 1:  # Only header or empty
+        if len(lines) <= 1:  # Header only or empty output.
             return []
 
-        # Parse the output - first line is header
+        # Parse tabular output; first line is header.
         profiles = []
         for line in lines[1:]:
             if line.strip():
-                # Profile name is the first column
+                # Profile name is in the first column.
                 parts = line.split()
                 if parts:
                     profiles.append(
@@ -278,7 +350,14 @@ def get_databricks_profiles() -> list[dict]:
 
 
 def validate_profile(profile_name: str) -> bool:
-    """Test if a Databricks profile is authenticated."""
+    """Validate that a Databricks profile is authenticated.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+
+    Returns:
+        True when the profile can access current-user API.
+    """
     try:
         env = {"DATABRICKS_CONFIG_PROFILE": profile_name}
         result = run_command(
@@ -292,7 +371,15 @@ def validate_profile(profile_name: str) -> bool:
 
 
 def authenticate_profile(profile_name: str, host: str = None) -> bool:
-    """Authenticate a Databricks profile."""
+    """Authenticate a Databricks profile via CLI login.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+        host: Optional Databricks workspace host URL.
+
+    Returns:
+        True when authentication succeeds.
+    """
     print(f"\nAuthenticating profile '{profile_name}'...")
     print("You will be prompted to log in to Databricks in your browser.\n")
 
@@ -310,7 +397,14 @@ def authenticate_profile(profile_name: str, host: str = None) -> bool:
 
 
 def select_profile_interactive(profiles: list[dict]) -> str:
-    """Let user select a profile interactively."""
+    """Prompt the user to select a Databricks profile.
+
+    Args:
+        profiles: Available Databricks profile entries.
+
+    Returns:
+        Selected profile name.
+    """
     print("\nFound existing Databricks profiles:\n")
 
     # Print header and profiles
@@ -336,25 +430,33 @@ def select_profile_interactive(profiles: list[dict]) -> str:
 
 
 def setup_databricks_auth(profile_arg: str = None, host_arg: str = None) -> str:
-    """Set up Databricks authentication and return the profile name."""
+    """Set up Databricks authentication and return the active profile.
+
+    Args:
+        profile_arg: Optional CLI-specified profile.
+        host_arg: Optional CLI-specified workspace host.
+
+    Returns:
+        Active Databricks profile name.
+    """
     print_step("Setting up Databricks authentication...")
 
-    # If profile was specified via CLI, use it directly
+    # Use CLI-specified profile when provided.
     if profile_arg:
         profile_name = profile_arg
         print(f"Using specified profile: {profile_name}")
     else:
-        # Check for existing profiles
+        # Otherwise, discover existing profiles interactively.
         profiles = get_databricks_profiles()
 
         if profiles:
             profile_name = select_profile_interactive(profiles)
             print(f"\nSelected profile: {profile_name}")
         else:
-            # No profiles exist - need to create one
+                # No profiles exist; create a new DEFAULT profile.
             profile_name = None
 
-    # Validate or authenticate the profile
+            # Validate or authenticate the selected profile.
     if profile_name:
         if validate_profile(profile_name):
             print_success(f"Successfully validated profile '{profile_name}'")
@@ -397,7 +499,14 @@ def setup_databricks_auth(profile_arg: str = None, host_arg: str = None) -> str:
 
 
 def get_databricks_host(profile_name: str) -> str:
-    """Get the Databricks workspace host URL from the profile."""
+    """Resolve the Databricks workspace host URL for a profile.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+
+    Returns:
+        Workspace host URL without trailing slash, or empty string.
+    """
     try:
         result = run_command(
             ["databricks", "auth", "env", "--profile", profile_name, "--output", "json"],
@@ -414,7 +523,14 @@ def get_databricks_host(profile_name: str) -> str:
 
 
 def get_databricks_username(profile_name: str) -> str:
-    """Get the current Databricks username."""
+    """Resolve the Databricks username for the active principal.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+
+    Returns:
+        Username for the authenticated principal.
+    """
     try:
         w = get_workspace_client(profile_name)
         if w:
@@ -427,7 +543,15 @@ def get_databricks_username(profile_name: str) -> str:
 
 
 def create_mlflow_experiment(profile_name: str, username: str) -> tuple[str, str]:
-    """Create (or reuse) an MLflow experiment and return (name, id)."""
+    """Create or reuse an MLflow experiment.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+        username: Workspace username used in experiment path.
+
+    Returns:
+        Tuple of experiment name and experiment ID.
+    """
     print_step("Setting up MLflow experiment...")
 
     w = get_workspace_client(profile_name)
@@ -451,7 +575,7 @@ def create_mlflow_experiment(profile_name: str, username: str) -> tuple[str, str
     experiment_name = f"/Users/{username}/agents-on-apps"
 
     try:
-        # Try to create with default name
+        # Attempt creation with the default experiment name first.
         try:
             experiment_id = w.experiments.create_experiment(name=experiment_name).experiment_id or ""
             print_success(f"Created experiment '{experiment_name}' with ID: {experiment_id}")
@@ -459,7 +583,7 @@ def create_mlflow_experiment(profile_name: str, username: str) -> tuple[str, str
         except Exception:
             pass
 
-        # Name already exists, try with random suffix
+        # If the name already exists, create a suffixed experiment name.
         print("Experiment name already exists, creating with random suffix...")
         random_suffix = secrets.token_hex(4)
         experiment_name = f"/Users/{username}/agents-on-apps-{random_suffix}"
@@ -474,7 +598,11 @@ def create_mlflow_experiment(profile_name: str, username: str) -> tuple[str, str
 
 
 def check_lakebase_required() -> bool:
-    """Check if databricks.yml has Lakebase configuration (provisioned or autoscaling)."""
+    """Check whether databricks.yml indicates Lakebase configuration.
+
+    Returns:
+        True when Lakebase-related keys are present.
+    """
     databricks_yml = Path("databricks.yml")
     if not databricks_yml.exists():
         return False
@@ -487,7 +615,14 @@ def check_lakebase_required() -> bool:
 
 
 def get_env_value(key: str) -> str:
-    """Get a value from .env file."""
+    """Read a single key value from .env.
+
+    Args:
+        key: Environment key name.
+
+    Returns:
+        Environment value when found; otherwise empty string.
+    """
     env_file = Path(".env")
     if not env_file.exists():
         return ""
@@ -521,7 +656,15 @@ def get_existing_lakebase_config() -> dict | None:
 
 
 def validate_lakebase_config(profile_name: str, config: dict) -> bool:
-    """Validate that an existing Lakebase config from .env is accessible in the current workspace."""
+    """Validate that a Lakebase config is accessible in the current workspace.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+        config: Lakebase configuration dictionary.
+
+    Returns:
+        True when the configuration is valid and accessible.
+    """
     if config["type"] == "provisioned":
         return validate_lakebase_instance(profile_name, config["instance_name"]) is not None
     elif config["type"] == "autoscaling":
@@ -533,7 +676,14 @@ def validate_lakebase_config(profile_name: str, config: dict) -> bool:
 
 
 def get_workspace_client(profile_name: str):
-    """Create a WorkspaceClient with the given profile."""
+    """Create a Databricks WorkspaceClient for a profile.
+
+    Args:
+        profile_name: Databricks CLI profile name.
+
+    Returns:
+        WorkspaceClient instance, or None on initialization failure.
+    """
     try:
         from databricks.sdk import WorkspaceClient
 
@@ -545,7 +695,12 @@ def get_workspace_client(profile_name: str):
 def get_app_resources(profile_name: str, app_name: str) -> list[dict]:
     """Fetch resources from an existing Databricks app.
 
-    Returns the resources list from the apps API, or empty list on failure.
+    Args:
+        profile_name: Databricks CLI profile name.
+        app_name: Databricks app name.
+
+    Returns:
+        Resource list from the apps API, or an empty list on failure.
     """
     print(f"Fetching resources from app '{app_name}'...")
     result = run_command(
@@ -574,10 +729,11 @@ def create_lakebase_instance(profile_name: str, name: str = None) -> dict:
     """Create a new Lakebase autoscaling instance (project + branch).
 
     Args:
+        profile_name: Databricks CLI profile name.
         name: Optional project name. If None, prompts the user via stdin.
 
     Returns:
-        Dict with {"type": "autoscaling", "endpoint": str}
+        Autoscaling Lakebase configuration dictionary.
     """
     w = get_workspace_client(profile_name)
     if not w:
@@ -645,13 +801,15 @@ def create_lakebase_instance(profile_name: str, name: str = None) -> dict:
 def _fetch_autoscaling_endpoint_info(
     profile_name: str, project: str, branch: str
 ) -> tuple[str, str]:
-    """Fetch endpoint info for an autoscaling Lakebase branch.
+    """Fetch endpoint metadata for an autoscaling Lakebase branch.
 
-    Returns (endpoint_path, host) where:
-    - endpoint_path is the full resource path (e.g. "projects/{id}/branches/{id}/endpoints/{id}")
-    - host is the connection hostname (e.g. "ep-xxx.database.us-west-2.cloud.databricks.com")
+    Args:
+        profile_name: Databricks CLI profile name.
+        project: Lakebase project identifier.
+        branch: Lakebase branch identifier.
 
-    Returns ("", "") if not found.
+    Returns:
+        Tuple of endpoint resource path and hostname, or empty strings if not found.
     """
     result = run_command(
         [
@@ -681,17 +839,13 @@ def _fetch_autoscaling_endpoint_info(
 
 
 def select_lakebase_interactive(profile_name: str) -> dict:
-    """Interactive Lakebase setup.
+    """Prompt the user for interactive Lakebase setup.
 
-    Flow:
-    1. New or existing?
-    2. New -> Create autoscaling project + branch, return endpoint
-    3. Existing -> Autoscaling endpoint or provisioned?
+    Args:
+        profile_name: Databricks CLI profile name.
 
     Returns:
-        Dict with either:
-        - {"type": "provisioned", "instance_name": str}
-        - {"type": "autoscaling", "endpoint": str}
+        Lakebase configuration dictionary for provisioned or autoscaling mode.
     """
     print("\nLakebase Setup")
     print("  1) Create a new Lakebase instance")
@@ -737,9 +891,14 @@ def select_lakebase_interactive(profile_name: str) -> dict:
 
 
 def validate_lakebase_instance(profile_name: str, lakebase_name: str) -> dict | None:
-    """Validate that the Lakebase instance exists and user has access.
+    """Validate that a provisioned Lakebase instance exists and is accessible.
 
-    Returns the instance info dict on success, None on failure.
+    Args:
+        profile_name: Databricks CLI profile name.
+        lakebase_name: Provisioned Lakebase instance name.
+
+    Returns:
+        Instance metadata dictionary on success; otherwise None.
     """
     print(f"Validating Lakebase instance '{lakebase_name}'...")
 
@@ -784,13 +943,14 @@ def validate_lakebase_instance(profile_name: str, lakebase_name: str) -> dict | 
 
 
 def validate_lakebase_autoscaling_endpoint(profile_name: str, endpoint: str) -> dict | None:
-    """Validate that the Lakebase autoscaling endpoint exists.
+    """Validate that a Lakebase autoscaling endpoint exists.
 
-    Uses the postgres API to verify the endpoint, then fetches the branch and
-    database paths needed for the DAB postgres resource in databricks.yml.
+    Args:
+        profile_name: Databricks CLI profile name.
+        endpoint: Autoscaling endpoint path or short name.
 
-    Returns a dict with {"endpoint": str, "host": str, "branch": str, "database": str}
-    on success, or None on failure.
+    Returns:
+        Endpoint metadata dictionary on success; otherwise None.
     """
     print(f"Validating Lakebase autoscaling endpoint '{endpoint}'...")
 
@@ -886,15 +1046,18 @@ def setup_lakebase(
     create_new_lakebase_proj: str = None,
     purpose: str = "memory",
 ) -> dict:
-    """Set up Lakebase instance.
+    """Set up Lakebase for memory or UI history.
 
     Args:
+        profile_name: Databricks CLI profile name.
+        username: Databricks username for PGUSER.
+        provisioned_name: Optional provisioned instance name.
+        autoscaling_endpoint: Optional autoscaling endpoint.
+        create_new_lakebase_proj: Optional autoscaling project name to create.
         purpose: "memory" for agent memory templates, "ui" for chat UI conversation history.
 
     Returns:
-        Dict with either:
-        - {"type": "provisioned", "instance_name": str}
-        - {"type": "autoscaling", "endpoint": str}
+        Lakebase configuration dictionary.
     """
     if purpose == "ui":
         print_step("Setting up Lakebase for chat UI conversation history...")
@@ -1047,8 +1210,15 @@ def setup_lakebase(
 def _replace_lakebase_env_vars(content: str, lakebase_config: dict) -> str:
     """Remove all Lakebase env var lines and insert only the relevant ones.
 
-    Handles both active and commented-out LAKEBASE_ env vars, plus their
-    associated comment lines (e.g. "# Autoscaling Lakebase config").
+    Handles both active and commented-out LAKEBASE env vars plus associated
+    section comments.
+
+    Args:
+        content: Full databricks.yml file content.
+        lakebase_config: Lakebase configuration dictionary.
+
+    Returns:
+        Updated databricks.yml content.
     """
     lines = content.splitlines()
     result = []
@@ -1112,9 +1282,14 @@ def _replace_lakebase_env_vars(content: str, lakebase_config: dict) -> str:
 
 
 def _build_postgres_resource_lines(indent: str, lakebase_config: dict) -> list[str]:
-    """Build the postgres resource YAML lines from a lakebase config dict.
+    """Build postgres resource YAML lines from Lakebase configuration.
 
-    DAB requires branch and database fields (not endpoint) for postgres resources.
+    Args:
+        indent: YAML indentation prefix.
+        lakebase_config: Lakebase configuration dictionary.
+
+    Returns:
+        YAML lines for a postgres resource block.
     """
     lines = [
         f"{indent}- name: 'postgres'",
@@ -1129,12 +1304,14 @@ def _build_postgres_resource_lines(indent: str, lakebase_config: dict) -> list[s
 
 
 def _replace_lakebase_resource(content: str, lakebase_config: dict) -> str:
-    """Update the Lakebase database/postgres resource section in databricks.yml.
+    """Update Lakebase database/postgres resources in databricks.yml.
 
-    For provisioned: uncomments and fills in the database resource block,
-    removes any postgres resource block.
-    For autoscaling: fills in the postgres resource block with actual values,
-    removes any database resource block.
+    Args:
+        content: Full databricks.yml file content.
+        lakebase_config: Lakebase configuration dictionary.
+
+    Returns:
+        Updated databricks.yml content.
     """
     LAKEBASE_COMMENTS = {
         "autoscaling postgres resource",
@@ -1335,7 +1512,14 @@ def _replace_lakebase_resource(content: str, lakebase_config: dict) -> str:
 
 
 def _find_last_resource_insert_idx(lines: list[str]) -> int | None:
-    """Find the index after the last resource block entry in the lines list."""
+    """Find the insertion index after the final resource block entry.
+
+    Args:
+        lines: databricks.yml content split into lines.
+
+    Returns:
+        Insertion index, or None when no resource block is found.
+    """
     for idx in range(len(lines) - 1, -1, -1):
         if re.match(r"\s+- name:", lines[idx]):
             # Find the end of this resource block
@@ -1351,7 +1535,11 @@ def _find_last_resource_insert_idx(lines: list[str]) -> int | None:
 
 
 def update_databricks_yml_lakebase(lakebase_config: dict) -> None:
-    """Update databricks.yml: keep only the relevant Lakebase env vars and resources."""
+    """Update databricks.yml with the selected Lakebase configuration.
+
+    Args:
+        lakebase_config: Lakebase configuration dictionary.
+    """
     yml_path = Path("databricks.yml")
     if not yml_path.exists():
         return
@@ -1366,11 +1554,10 @@ def update_databricks_yml_lakebase(lakebase_config: dict) -> None:
 
 
 def get_databricks_yml_experiment_id() -> str:
-    """Read the experiment_id already written into databricks.yml, if any.
+    """Read an existing experiment_id from databricks.yml.
 
-    Returns the experiment_id string, or "" if not set / file missing.
-    Useful for re-running quickstart against a previously-configured app so we
-    can skip experiment creation and reuse the existing ID.
+    Returns:
+        Experiment ID string, or empty string when not set.
     """
     yml_path = Path("databricks.yml")
     if not yml_path.exists():
@@ -1387,7 +1574,11 @@ def get_databricks_yml_experiment_id() -> str:
 
 
 def update_databricks_yml_experiment(experiment_id: str) -> None:
-    """Update databricks.yml to set the experiment ID in the app resource."""
+    """Update databricks.yml with the resolved experiment ID.
+
+    Args:
+        experiment_id: Experiment ID to write.
+    """
     yml_path = Path("databricks.yml")
     if not yml_path.exists():
         return
@@ -1437,6 +1628,7 @@ def update_databricks_yml_app_name(app_name: str, budget_policy_id: str | None =
 
 
 def main():
+    """Run the end-to-end quickstart workflow."""
     parser = argparse.ArgumentParser(
         description="Quickstart setup for Databricks agent development",
         formatter_class=argparse.RawDescriptionHelpFormatter,

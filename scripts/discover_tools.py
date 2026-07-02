@@ -26,8 +26,9 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
 DEFAULT_MAX_RESULTS = 100
 DEFAULT_MAX_SCHEMAS = 25
 
+
 def run_databricks_cli(args: List[str]) -> str:
-    """Run databricks CLI command and return output."""
+    """Run a Databricks CLI command and return standard output."""
     try:
         result = subprocess.run(
             ["databricks"] + args,
@@ -61,7 +62,7 @@ def discover_uc_functions(w: WorkspaceClient, catalog: str = None, max_schemas: 
 
             try:
                 all_schemas = list(w.schemas.list(catalog_name=cat))
-                # Take schemas from this catalog until we hit the global budget
+                # Respect the global schema search budget.
                 schemas_to_search = all_schemas[:max_schemas - schemas_searched]
 
                 for schema in schemas_to_search:
@@ -79,12 +80,12 @@ def discover_uc_functions(w: WorkspaceClient, catalog: str = None, max_schemas: 
                                 "routine_definition": getattr(func, "routine_definition", None),
                             })
                     except Exception as e:
-                        # Skip schemas we can't access
+                        # Skip inaccessible schemas and continue discovery.
                         continue
                     finally:
                         schemas_searched += 1
             except Exception as e:
-                # Skip catalogs we can't access
+                # Skip inaccessible catalogs and continue discovery.
                 continue
 
     except Exception as e:
@@ -120,7 +121,7 @@ def discover_uc_tables(w: WorkspaceClient, catalog: str = None, schema: str = No
                     schemas_to_search = [schema]
                 else:
                     all_schemas = [s.name for s in w.schemas.list(catalog_name=cat)]
-                    # Take schemas from this catalog until we hit the global budget
+                    # Respect the global schema search budget.
                     schemas_to_search = all_schemas[:max_schemas - schemas_searched]
 
                 for sch in schemas_to_search:
@@ -131,7 +132,7 @@ def discover_uc_tables(w: WorkspaceClient, catalog: str = None, schema: str = No
                     try:
                         tbls = list(w.tables.list(catalog_name=cat, schema_name=sch))
                         for tbl in tbls:
-                            # Get column info
+                            # Include basic column metadata when available.
                             columns = []
                             if hasattr(tbl, "columns") and tbl.columns:
                                 columns = [
@@ -150,12 +151,12 @@ def discover_uc_tables(w: WorkspaceClient, catalog: str = None, schema: str = No
                                 "columns": columns,
                             })
                     except Exception as e:
-                        # Skip schemas we can't access
+                        # Skip inaccessible schemas and continue discovery.
                         pass
                     finally:
                         schemas_searched += 1
             except Exception as e:
-                # Skip catalogs we can't access
+                # Skip inaccessible catalogs and continue discovery.
                 continue
 
     except Exception as e:
@@ -169,12 +170,12 @@ def discover_vector_search_indexes(w: WorkspaceClient) -> List[Dict[str, Any]]:
     indexes = []
 
     try:
-        # List all vector search endpoints
+        # Enumerate vector search endpoints first.
         endpoints = list(w.vector_search_endpoints.list_endpoints())
 
         for endpoint in endpoints:
             try:
-                # List indexes for each endpoint
+                # Enumerate indexes for each endpoint.
                 endpoint_indexes = list(w.vector_search_indexes.list_indexes(endpoint_name=endpoint.name))
                 for idx in endpoint_indexes:
                     indexes.append({
@@ -186,7 +187,7 @@ def discover_vector_search_indexes(w: WorkspaceClient) -> List[Dict[str, Any]]:
                         "status": idx.status.state.value if idx.status and idx.status.state else None,
                     })
             except Exception as e:
-                # Skip endpoints we can't access
+                # Skip inaccessible endpoints and continue discovery.
                 continue
 
     except Exception as e:
@@ -200,7 +201,7 @@ def discover_genie_spaces(w: WorkspaceClient) -> List[Dict[str, Any]]:
     spaces = []
 
     try:
-        # Use SDK to list genie spaces
+        # Use the SDK to enumerate Genie spaces.
         response = w.genie.list_spaces()
         genie_spaces = response.spaces if hasattr(response, "spaces") else []
         for space in genie_spaces:
@@ -215,14 +216,12 @@ def discover_genie_spaces(w: WorkspaceClient) -> List[Dict[str, Any]]:
 
     return spaces
 
-
-
 def discover_custom_mcp_servers(w: WorkspaceClient) -> List[Dict[str, Any]]:
     """Discover custom MCP servers deployed as Databricks apps."""
     custom_servers = []
 
     try:
-        # List all apps and filter for those starting with mcp-
+        # Enumerate Databricks Apps and retain names prefixed with mcp-.
         apps = w.apps.list()
         for app in apps:
             if app.name and app.name.startswith("mcp-"):
@@ -244,10 +243,10 @@ def discover_external_mcp_servers(w: WorkspaceClient) -> List[Dict[str, Any]]:
     external_servers = []
 
     try:
-        # List all connections and filter for MCP connections
+        # Enumerate Unity Catalog connections and retain MCP connections.
         connections = w.connections.list()
         for conn in connections:
-            # Check if this is an MCP connection
+            # Identify MCP connections via the standard connection option flag.
             if conn.options and conn.options.get("is_mcp_connection") == "true":
                 external_servers.append({
                     "type": "external_mcp_server",
@@ -266,7 +265,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
     """Format discovery results as markdown."""
     lines = ["# Agent Tools and Data Sources Discovery\n"]
 
-    # UC Functions
+    # Unity Catalog functions.
     functions = results.get("uc_functions", [])
     if functions:
         lines.append(f"## Unity Catalog Functions ({len(functions)})\n")
@@ -274,7 +273,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
         lines.append("**How to use:** Access via UC functions MCP server:")
         lines.append("- All functions in a schema: `{workspace_host}/api/2.0/mcp/functions/{catalog}/{schema}`")
         lines.append("- Single function: `{workspace_host}/api/2.0/mcp/functions/{catalog}/{schema}/{function_name}`\n")
-        for func in functions[:10]:  # Show first 10
+        for func in functions[:10]:
             lines.append(f"- `{func['name']}`")
             if func.get("comment"):
                 lines.append(f"  - {func['comment']}")
@@ -282,12 +281,12 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
             lines.append(f"\n*...and {len(functions) - 10} more*\n")
         lines.append("")
 
-    # UC Tables
+    # Unity Catalog tables.
     tables = results.get("uc_tables", [])
     if tables:
         lines.append(f"## Unity Catalog Tables ({len(tables)})\n")
         lines.append("Structured data that agents can query via UC SQL functions.\n")
-        for table in tables[:10]:  # Show first 10
+        for table in tables[:10]:
             lines.append(f"- `{table['name']}` ({table['table_type']})")
             if table.get("comment"):
                 lines.append(f"  - {table['comment']}")
@@ -298,7 +297,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
             lines.append(f"\n*...and {len(tables) - 10} more*\n")
         lines.append("")
 
-    # Vector Search Indexes
+    # Vector Search indexes.
     indexes = results.get("vector_search_indexes", [])
     if indexes:
         lines.append(f"## Vector Search Indexes ({len(indexes)})\n")
@@ -311,7 +310,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
             lines.append(f"  - Status: {idx['status']}")
         lines.append("")
 
-    # Genie Spaces
+    # Genie spaces.
     spaces = results.get("genie_spaces", [])
     if spaces:
         lines.append(f"## Genie Spaces ({len(spaces)})\n")
@@ -323,7 +322,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
                 lines.append(f"  - {space['description']}")
         lines.append("")
 
-    # Custom MCP Servers (Databricks Apps)
+    # Custom MCP servers (Databricks Apps).
     custom_servers = results.get("custom_mcp_servers", [])
     if custom_servers:
         lines.append(f"## Custom MCP Servers ({len(custom_servers)})\n")
@@ -343,7 +342,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
                 lines.append(f"  - {server['description']}")
         lines.append("")
 
-    # External MCP Servers (UC Connections)
+    # External MCP servers (Unity Catalog connections).
     external_servers = results.get("external_mcp_servers", [])
     if external_servers:
         lines.append(f"## External MCP Servers ({len(external_servers)})\n")
@@ -361,7 +360,7 @@ def format_output_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
 
 
 def main():
-    """Main discovery function."""
+    """Run tool and data source discovery."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Discover available agent tools and data sources")
@@ -381,7 +380,7 @@ def main():
 
     print("Discovering available tools and data sources...", file=sys.stderr)
 
-    # Initialize Databricks workspace client
+    # Initialize Databricks workspace client.
     profile = args.profile or os.environ.get("DATABRICKS_CONFIG_PROFILE")
     if profile:
         w = WorkspaceClient(profile=profile)
@@ -390,7 +389,7 @@ def main():
 
     results = {}
 
-    # Discover each type with configurable limits
+    # Discover each resource type with configurable limits.
     print("- UC Functions...", file=sys.stderr)
     results["uc_functions"] = discover_uc_functions(w, catalog=args.catalog, max_schemas=args.max_schemas)[:args.max_results]
 
@@ -409,20 +408,20 @@ def main():
     print("- External MCP Servers (Connections)...", file=sys.stderr)
     results["external_mcp_servers"] = discover_external_mcp_servers(w)[:args.max_results]
 
-    # Format output
+    # Format output.
     if args.format == "json":
         output = json.dumps(results, indent=2)
     else:
         output = format_output_markdown(results)
 
-    # Write output
+    # Write output.
     if args.output:
         Path(args.output).write_text(output)
         print(f"\nResults written to {args.output}", file=sys.stderr)
     else:
         print("\n" + output)
 
-    # Print summary
+    # Print summary.
     print("\n=== Discovery Summary ===", file=sys.stderr)
     print(f"UC Functions: {len(results['uc_functions'])}", file=sys.stderr)
     print(f"UC Tables: {len(results['uc_tables'])}", file=sys.stderr)

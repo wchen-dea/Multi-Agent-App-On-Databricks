@@ -89,7 +89,7 @@ curl -sS -X PATCH "$PERM" -H "Authorization: Bearer $TOKEN" -H "Content-Type: ap
   -d '{"changes":[{"principal":"<developer@org.com>","add":["READ_MEMORY_STORE","WRITE_MEMORY_STORE"]}]}'
 
 # Grant the DEPLOYED app's service principal (run AFTER deploy, once the app + its SP exist):
-APP_SP=$(databricks apps get <your-app> -o json | jq -r .service_principal_client_id)
+APP_SP=$(databricks apps get <your-app> --profile <profile> -o json | jq -r .service_principal_client_id)
 curl -sS -X PATCH "$PERM" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d "{\"changes\":[{\"principal\":\"$APP_SP\",\"add\":[\"READ_MEMORY_STORE\",\"WRITE_MEMORY_STORE\"]}]}"
 

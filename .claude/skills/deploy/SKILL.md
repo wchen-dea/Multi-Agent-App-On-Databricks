@@ -196,10 +196,12 @@ databricks apps get <app-name> --output json | jq -r '.url'
 If the agent uses **autoscaling Lakebase** (user mentions "autoscaling", "project", or "branch" in the context of Lakebase), the postgres resource is declared natively in `databricks.yml` — `databricks bundle deploy` creates the app with it. You only need to grant table permissions to the app's service principal after deploy:
 
 ```bash
-# Find the SP client ID
-databricks apps get <name> --output json | jq -r '.service_principal_client_id'
-
-# Grant table permissions (see scripts/grant_lakebase_permissions.py)
+# Preferred flow: resolve SP from app name and profile in the script
+uv run python scripts/grant_permissions.py \
+  --app-name <app-name> \
+  --profile <profile> \
+  --memory-type <langgraph|openai> \
+  --instance-name <lakebase-instance-name>
 ```
 
 **See `.claude/skills/add-tools/examples/lakebase-autoscaling.yaml` for the full resource snippet.** Requires CLI v0.295.0+ for native `postgres` resource support.

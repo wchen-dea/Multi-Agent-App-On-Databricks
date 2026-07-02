@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-flight check: start the agent locally, send a test request, verify a response.
+"""Run a pre-flight check for the local agent.
 
 Run this before deploying to catch configuration and code errors early.
 
@@ -19,19 +19,32 @@ import urllib.request
 
 _IS_WINDOWS = sys.platform == "win32"
 
-# How long to wait for the server to start (seconds)
+# Maximum wait time for server startup, in seconds.
 SERVER_START_TIMEOUT = 60
-# How long to wait for a response from the agent (seconds)
+# Maximum wait time for a response request, in seconds.
 REQUEST_TIMEOUT = 60
 
 
 def find_free_port() -> int:
+    """Return an available ephemeral localhost port.
+
+    Returns:
+        Available TCP port number.
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         return s.getsockname()[1]
 
 
 def start_server(port: int) -> subprocess.Popen:
+    """Start the local server and wait until readiness logs are observed.
+
+    Args:
+        port: Local port used for server startup.
+
+    Returns:
+        Running server subprocess handle.
+    """
     popen_kwargs = {}
     if _IS_WINDOWS:
         popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -78,6 +91,11 @@ def start_server(port: int) -> subprocess.Popen:
 
 
 def stop_server(proc: subprocess.Popen):
+    """Terminate the server process gracefully, then force-kill if needed.
+
+    Args:
+        proc: Server subprocess handle.
+    """
     if _IS_WINDOWS:
         proc.terminate()
     else:
@@ -94,6 +112,14 @@ def stop_server(proc: subprocess.Popen):
 
 
 def check_health(base_url: str) -> bool:
+    """Validate that the health endpoint reports a healthy status.
+
+    Args:
+        base_url: Base URL for local server endpoints.
+
+    Returns:
+        True when the health endpoint responds with healthy status.
+    """
     try:
         req = urllib.request.Request(f"{base_url}/health")
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -105,6 +131,15 @@ def check_health(base_url: str) -> bool:
 
 
 def check_invocations(base_url: str, retries: int = 2) -> bool:
+    """Send a minimal invocation request and validate response shape.
+
+    Args:
+        base_url: Base URL for local server endpoints.
+        retries: Number of retry attempts after initial failure.
+
+    Returns:
+        True when invocation succeeds with expected output shape.
+    """
     payload = json.dumps(
         {"input": [{"role": "user", "content": "Say hello in one word."}]}
     ).encode()
@@ -118,7 +153,7 @@ def check_invocations(base_url: str, retries: int = 2) -> bool:
             )
             with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
                 data = json.loads(resp.read())
-                # Check that we got a response with output
+                # Confirm that the invocation response includes at least one output item.
                 if "output" in data and len(data["output"]) > 0:
                     return True
                 print(f"  Unexpected response shape: {json.dumps(data)[:200]}")
@@ -134,26 +169,27 @@ def check_invocations(base_url: str, retries: int = 2) -> bool:
 
 
 def main():
+    """Execute the end-to-end local pre-flight workflow."""
     print("Pre-flight check")
     print("=" * 40)
 
     port = find_free_port()
     base_url = f"http://localhost:{port}"
 
-    # Step 1: Start server
+    # Step 1: Start server.
     print(f"1. Starting server on port {port}...")
     proc = start_server(port)
     print("   OK")
 
     try:
-        # Step 2: Health check
+        # Step 2: Health check.
         print("2. Health check...")
         if not check_health(base_url):
             print("   FAILED")
             sys.exit(1)
         print("   OK")
 
-        # Step 3: Send a test request
+        # Step 3: Send a test request.
         print("3. Sending test request to /invocations...")
         if not check_invocations(base_url):
             print("   FAILED")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Start script for running frontend and backend processes concurrently.
+Start frontend and backend processes concurrently.
 
 Requirements:
 1. Not reporting ready until BOTH frontend and backend processes are ready
@@ -26,24 +26,59 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Readiness patterns
+# Process readiness log patterns.
 BACKEND_READY = [r"Uvicorn running on", r"Application startup complete", r"Started server process"]
 FRONTEND_READY = [r"Your app is available at"]
 
 
+def _env_int(primary: str, fallback: str | None, default: int) -> int:
+    """Read an integer environment variable with fallback and default values.
+
+    Args:
+        primary: Primary environment variable name.
+        fallback: Fallback environment variable name.
+        default: Default value when parsing fails.
+
+    Returns:
+        Parsed integer value or the default.
+    """
+    raw = os.environ.get(primary)
+    if raw is None and fallback:
+        raw = os.environ.get(fallback)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 def check_port_available(port: int) -> bool:
-    """Check if a port is available (nothing is actively listening on it)."""
+    """Check whether a TCP port is available on localhost.
+
+    Args:
+        port: TCP port number to test.
+
+    Returns:
+        True when no process is listening on the port.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1)
             s.connect(("localhost", port))
-        return False  # Something is listening
+        return False
     except (ConnectionRefusedError, OSError):
-        return True  # Nothing listening = available
+        return True
 
 
 class ProcessManager:
     def __init__(self, port=8000, no_ui=False):
+        """Initialize process state, readiness flags, and runtime options.
+
+        Args:
+            port: Backend port to use unless overridden.
+            no_ui: Whether to run backend only.
+        """
         self.backend_process = None
         self.frontend_process = None
         self.backend_ready = False
@@ -56,7 +91,7 @@ class ProcessManager:
         self.no_ui = no_ui
 
     def check_ports(self):
-        """Check that required ports are available before starting processes."""
+        """Validate that required ports are available before process startup."""
         backend_port = self.port
 
         errors = []
@@ -67,7 +102,7 @@ class ProcessManager:
             )
 
         if not self.no_ui:
-            frontend_port = int(os.environ.get("CHAT_APP_PORT", os.environ.get("PORT", "3000")))
+            frontend_port = _env_int("CHAT_APP_PORT", "PORT", 3000)
 
             if backend_port == frontend_port:
                 print(
@@ -97,6 +132,14 @@ class ProcessManager:
             sys.exit(1)
 
     def monitor_process(self, process, name, log_file, patterns):
+        """Stream process logs, detect readiness, and flag failures.
+
+        Args:
+            process: Subprocess handle to monitor.
+            name: Logical process name used in output.
+            log_file: Open file handle receiving mirrored process logs.
+            patterns: Regex patterns indicating process readiness.
+        """
         is_ready = False
         try:
             for line in iter(process.stdout.readline, ""):
@@ -107,7 +150,7 @@ class ProcessManager:
                 log_file.write(line + "\n")
                 print(f"[{name}] {line}")
 
-                # Check readiness
+                # Mark process readiness when any configured pattern is detected.
                 if not is_ready and any(re.search(p, line, re.IGNORECASE) for p in patterns):
                     is_ready = True
                     if name == "backend":
@@ -136,6 +179,18 @@ class ProcessManager:
             self.failed.set()
 
     def start_process(self, cmd, name, log_file, patterns, cwd=None):
+        """Start a process and attach a monitor thread.
+
+        Args:
+            cmd: Command list to execute.
+            name: Logical process name used in output.
+            log_file: Open file handle receiving mirrored process logs.
+            patterns: Regex patterns indicating process readiness.
+            cwd: Optional working directory override.
+
+        Returns:
+            Started subprocess handle.
+        """
         print(f"Starting {name}...")
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=cwd
@@ -148,6 +203,11 @@ class ProcessManager:
         return process
 
     def print_logs(self, log_path):
+        """Print the tail of a process log file for troubleshooting.
+
+        Args:
+            log_path: Path to the log file.
+        """
         print(f"\nLast 50 lines of {log_path}:")
         print("-" * 40)
         try:
@@ -158,6 +218,7 @@ class ProcessManager:
         print("-" * 40)
 
     def cleanup(self):
+        """Terminate managed processes and close log file handles."""
         print("\n" + "=" * 42)
         print("Shutting down..." if self.no_ui else "Shutting down both processes...")
         print("=" * 42)
@@ -176,6 +237,14 @@ class ProcessManager:
             self.frontend_log.close()
 
     def run(self, backend_args=None):
+        """Run process orchestration until failure or interruption.
+
+        Args:
+            backend_args: Additional arguments passed to start-server.
+
+        Returns:
+            Process exit code.
+        """
         load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
         in_databricks_app = bool(os.environ.get("DATABRICKS_APP_NAME"))
         if not in_databricks_app:
@@ -183,9 +252,9 @@ class ProcessManager:
 
         backend_port = self.port
         if in_databricks_app and not self.no_ui:
-            # Databricks routes public traffic to the app port. Keep UI on that
-            # port and move backend to an internal port to avoid bind conflicts.
-            public_port = int(os.environ.get("DATABRICKS_APP_PORT", os.environ.get("PORT", "8000")))
+            # Databricks routes public traffic to the app port. Keep the UI on
+            # that port and shift the backend to an internal port.
+            public_port = _env_int("DATABRICKS_APP_PORT", "PORT", 8000)
             self.frontend_port = public_port
             if backend_port == public_port:
                 backend_port = public_port + 1
@@ -196,31 +265,31 @@ class ProcessManager:
                 print("ERROR: frontend/chainlit_app.py not found. Ensure it is present in the repo root.")
                 self.no_ui = True
             else:
-                # Set API_PROXY environment variable for Chainlit to connect to backend
+                # Configure Chainlit to proxy requests to the backend invocations endpoint.
                 os.environ["API_PROXY"] = f"http://localhost:{self.port}/invocations"
 
-        # Open log files
+        # Open process log files with line-buffered writes.
         self.backend_log = open("backend.log", "w", buffering=1)
         if not self.no_ui:
             self.frontend_log = open("frontend.log", "w", buffering=1)
 
         try:
-            # Build backend command, passing through all arguments
+            # Build backend command while preserving passthrough arguments.
             backend_cmd = ["uv", "run", "start-server"]
             backend_cmd_args = list(backend_args or [])
             if "--port" not in backend_cmd_args:
                 backend_cmd_args.extend(["--port", str(self.port)])
             backend_cmd.extend(backend_cmd_args)
 
-            # Start backend
+            # Start backend process first.
             self.backend_process = self.start_process(
                 backend_cmd, "backend", self.backend_log, BACKEND_READY
             )
 
             if not self.no_ui:
-                # Start Chainlit chat UI
+                # Start Chainlit UI process.
                 if self.frontend_port is None:
-                    self.frontend_port = int(os.environ.get("CHAT_APP_PORT", os.environ.get("PORT", "3000")))
+                    self.frontend_port = _env_int("CHAT_APP_PORT", "PORT", 3000)
                 self.frontend_process = self.start_process(
                     [
                         "uv", "run", "chainlit", "run", "frontend/chainlit_app.py",
@@ -238,7 +307,7 @@ class ProcessManager:
             else:
                 print(f"\nMonitoring backend process (PID: {self.backend_process.pid})\n")
 
-            # Wait for failure
+            # Stop when either managed process exits unexpectedly.
             while not self.failed.is_set():
                 time.sleep(0.1)
                 if self.backend_process.poll() is not None:
@@ -252,7 +321,7 @@ class ProcessManager:
                     self.failed.set()
                     break
 
-            # Determine which failed
+            # Determine which process exited first and return its exit code.
             if self.no_ui or self.backend_process.poll() is not None:
                 failed_name = "backend"
                 failed_proc = self.backend_process
@@ -278,6 +347,7 @@ class ProcessManager:
 
 
 def main():
+    """Parse CLI arguments and run the process manager."""
     parser = argparse.ArgumentParser(
         description="Start agent frontend and backend",
         usage="%(prog)s [OPTIONS]\n\nAll options are passed through to start-server. "
@@ -290,7 +360,7 @@ def main():
     )
     args, backend_args = parser.parse_known_args()
 
-    # Extract port from backend_args if specified
+    # Read explicit backend port from passthrough arguments when provided.
     port = 8000
     for i, arg in enumerate(backend_args):
         if arg == "--port" and i + 1 < len(backend_args):

@@ -1,5 +1,5 @@
 """
-Chainlit chat UI for the multi-agent orchestrator.
+Run the Chainlit chat UI for the multi-agent orchestrator.
 
 Connects to the backend MLflow AgentServer at API_PROXY and streams responses
 using the OpenAI Responses API SSE format.
@@ -28,22 +28,65 @@ CHAT_GREETING = os.environ.get("CHAT_GREETING", "What would you like to know?")
 TIMEOUT = int(os.environ.get("CHAT_PROXY_TIMEOUT_SECONDS", "300"))
 
 
+def _build_payload(history: list[dict], user_message: str) -> dict:
+    """Build the backend request payload.
+
+    Args:
+        history: In-memory conversation history.
+        user_message: Latest user message content.
+
+    Returns:
+        Request payload for the backend /invocations endpoint.
+    """
+    history.append({"role": "user", "content": user_message})
+    return {
+        "input": history,
+        "stream": True,
+        "context": {"conversation_id": cl.context.session.id},
+    }
+
+
+def _extract_delta(event: dict) -> str:
+    """Extract a text token from a streamed Responses API event.
+
+    Args:
+        event: Parsed SSE event payload.
+
+    Returns:
+        Delta token text when present; otherwise an empty string.
+    """
+    if event.get("type") != "response.output_text.delta":
+        return ""
+    return event.get("delta", "") or ""
+
+
+async def _set_error(message: cl.Message, content: str) -> None:
+    """Update the Chainlit message with an error response.
+
+    Args:
+        message: Chainlit message handle to update.
+        content: Error text shown to the user.
+    """
+    message.content = content
+    await message.update()
+
+
 @cl.on_chat_start
 async def on_chat_start():
+    """Initialize chat state and send the greeting message."""
     cl.user_session.set("history", [])
     await cl.Message(content=CHAT_GREETING).send()
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    history: list[dict] = cl.user_session.get("history", [])
-    history.append({"role": "user", "content": message.content})
+    """Proxy a user message to the backend and stream assistant tokens.
 
-    payload = {
-        "input": history,
-        "stream": True,
-        "context": {"conversation_id": cl.context.session.id},
-    }
+    Args:
+        message: Incoming user message event from Chainlit.
+    """
+    history: list[dict] = cl.user_session.get("history", [])
+    payload = _build_payload(history, message.content)
 
     response_msg = cl.Message(content="")
     await response_msg.send()
@@ -61,30 +104,32 @@ async def on_message(message: cl.Message):
                         break
                     try:
                         event = json.loads(data)
-                        # OpenAI Responses API SSE: response.output_text.delta
-                        if event.get("type") == "response.output_text.delta":
-                            token = event.get("delta", "")
-                            if token:
-                                await response_msg.stream_token(token)
-                                full_text += token
+                        # Stream assistant token deltas from Responses API events.
+                        token = _extract_delta(event)
+                        if token:
+                            await response_msg.stream_token(token)
+                            full_text += token
                     except json.JSONDecodeError:
-                        pass
+                        continue
 
     except httpx.ConnectError:
-        response_msg.content = (
-            f"Cannot connect to backend at `{BACKEND_URL}`. "
-            "Ensure the backend is running: `uv run start-server`"
+        await _set_error(
+            response_msg,
+            (
+                f"Cannot connect to backend at `{BACKEND_URL}`. "
+                "Ensure the backend is running: `uv run start-server`"
+            ),
         )
-        await response_msg.update()
         return
     except httpx.HTTPStatusError as e:
-        response_msg.content = f"Backend returned HTTP {e.response.status_code}."
-        await response_msg.update()
+        await _set_error(response_msg, f"Backend returned HTTP {e.response.status_code}.")
         return
     except Exception:
         logger.exception("Unexpected error calling backend")
-        response_msg.content = "An unexpected error occurred. Check backend.log for details."
-        await response_msg.update()
+        await _set_error(
+            response_msg,
+            "An unexpected error occurred. Check backend.log for details.",
+        )
         return
 
     await response_msg.update()
