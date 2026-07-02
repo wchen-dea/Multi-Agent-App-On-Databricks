@@ -36,6 +36,66 @@ This repository contains a Databricks-hosted orchestrator agent that routes user
 
 The orchestrator selects tools dynamically based on user intent and the routing instructions in `backend/agent.py`.
 
+## Deployment Diagram
+
+```mermaid
+flowchart LR
+  subgraph Personas[Personas]
+    U1[Business User]
+    U2[Analyst]
+    U3[Operator]
+  end
+
+  UI[Client UI]
+  ORCH[Agent Orchestration]
+  MCP[MCP Layer]
+  LLM[Databricks LLM]
+
+  subgraph Agents[Multiple Agents]
+    A1[Genie Sales Agent]
+    A2[Serving Endpoint Agent: Knowledge Assistant]
+    A3[Serving Endpoint Agent: Lakebase Vector Storage]
+  end
+
+  SEM[Business Semantic Layer]
+  KB[Knowledge Base]
+  FS[Feature Store]
+  RDS[Relational Data Store]
+
+  U1 --> UI
+  U2 --> UI
+  U3 --> UI
+
+  UI --> ORCH
+  ORCH --> A1
+  ORCH --> A2
+  ORCH --> A3
+
+  ORCH --> LLM
+  A1 --> LLM
+  A2 --> LLM
+  A3 --> LLM
+
+  ORCH --> MCP
+  A1 --> MCP
+  A2 --> MCP
+  A3 --> MCP
+
+  MCP --> SEM
+  SEM --> KB
+  SEM --> FS
+  SEM --> RDS
+```
+
+### How To Read This Diagram
+
+- People on the left (Business User, Analyst, Operator) interact with the Client UI.
+- The Agent Orchestration service decides which specialist agent(s) should handle each request.
+- Agents use the Databricks LLM to reason and generate responses.
+- When data is needed, agents and orchestration use MCP to reach the business semantic layer.
+- The semantic layer pulls trusted data from the knowledge base, feature store, and relational data store.
+- Results flow back through orchestration to the UI so users see one unified answer.
+
 ## Repository Layout
 
 - `backend/`: orchestrator code, invoke and stream handlers, server startup, evaluation

@@ -29,6 +29,67 @@ The runtime is built with MLflow Agent Server and OpenAI Agents SDK.
 - `resources/multiagent-app.yml`: shared Databricks app/resource defaults.
 - `targets/*.yml`: environment-specific workspace, identity, and permission overrides.
 
+## Deployment Diagram
+
+```mermaid
+flowchart LR
+    subgraph Personas[Personas]
+        P1[Business User]
+        P2[Analyst]
+        P3[Operator]
+    end
+
+    subgraph Client[Client UI]
+        UI[Chainlit / App UI]
+    end
+
+    subgraph Platform[Databricks App Platform]
+        ORCH[Agent Orchestration Service]
+        MCP[MCP Integration Layer]
+        LLM[Databricks-Provided LLM]
+
+        subgraph Agents[Multiple Agents]
+            A1[Genie Sales Agent]
+            A2[Serving Endpoint Agent: Knowledge Assistant]
+            A3[Serving Endpoint Agent: Lakebase Vector Storage]
+        end
+
+        subgraph Semantic[Business Semantic Layer]
+            BSL[Genie Space / Semantic Model]
+        end
+    end
+
+    subgraph Data[Enterprise Data]
+        KB[Knowledge Base]
+        FS[Feature Stores]
+        RDS[Relational Data Store]
+    end
+
+    P1 --> UI
+    P2 --> UI
+    P3 --> UI
+
+    UI --> ORCH
+    ORCH --> A1
+    ORCH --> A2
+    ORCH --> A3
+
+    A1 --> LLM
+    A2 --> LLM
+    A3 --> LLM
+    ORCH --> LLM
+
+    ORCH --> MCP
+    MCP --> BSL
+    BSL --> KB
+    BSL --> FS
+    BSL --> RDS
+
+    A1 --> MCP
+    A2 --> MCP
+    A3 --> MCP
+```
+
 ## Request Flow
 
 ```mermaid

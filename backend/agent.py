@@ -53,43 +53,34 @@ ORCHESTRATOR_MODEL = "databricks-gpt-5-2"
 
 SUBAGENTS: list[dict[str, Any]] = [
     {
-        "name": "genie",
+        "name": "sales_agent",
         "type": "genie",
         "space_id": "01f159f5d91419549020e3609add391c",  # UUID from the Genie space URL
         "description": (
-            "Query a Genie space for structured data analysis. "
-            "Use this for questions about data, metrics, and tables."
+            "Sales agent backed by a Genie space for structured data analysis. "
+            "Use this for sales metrics, store performance, and operational reporting."
         ),
     },
-    # {
-    #     "name": "app_agent",
-    #     "type": "app",
-    #     "endpoint": "multi_agent_app",
-    #     "description": (
-    #         "Query a specialist agent deployed as a Databricks App. "
-    #         "Use this for questions the specialist app agent handles."
-    #     ),
-    # },
-    # {
-    #     "name": "knowledge_assistant",
-    #     "type": "serving_endpoint",
-    #     "endpoint": "knowledge_assistant",
-    #     "description": (
-    #         "Query the knowledge-assistant endpoint on Model Serving. "
-    #         "Use this for knowledge-base / documentation lookups. "
-    #         "The endpoint must have task type agent/v1/responses."
-    #     ),
-    # },
-    # {
-    #     "name": "serving_endpoint",
-    #     "type": "serving_endpoint",
-    #     "endpoint": "serving_endpoint",
-    #     "description": (
-    #         "Query a model hosted on a Databricks Model Serving endpoint. "
-    #         "Use this for questions best answered by the serving model. "
-    #         "The endpoint must have task type agent/v1/responses."
-    #     ),
-    # },
+    {
+        "name": "knowledge_assistant",
+        "type": "serving_endpoint",
+        "endpoint": "knowledge_assistant",
+        "description": (
+            "Query the knowledge-assistant endpoint on Model Serving. "
+            "Use this for documentation and policy lookups. "
+            "The endpoint must have task type agent/v1/responses."
+        ),
+    },
+    {
+        "name": "lakebase_vector",
+        "type": "serving_endpoint",
+        "endpoint": "lakebase_vector_storage",
+        "description": (
+            "Query the Lakebase-backed vector storage endpoint on Model Serving. "
+            "Use this for semantic retrieval and vector-search style lookups. "
+            "The endpoint must have task type agent/v1/responses."
+        ),
+    },
 ]
 
 if not SUBAGENTS:
