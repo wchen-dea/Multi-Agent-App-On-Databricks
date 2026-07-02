@@ -1,10 +1,168 @@
-@docs/agent_framework.md
+# Claude Skills Guide
 
-<!-- Loader file that points Claude tooling to the main agent framework guide. -->
+## Purpose
 
-Current project status is maintained in:
+This is the operator guide for using Claude skills in this repository.
+It defines the active skill set, how to invoke selected skills in Claude Code, and the safest default execution flow.
 
-- `README.md`
-- `docs/agent_framework.md`
+## Scope
+
+Applies only to active skills under `.claude/skills/` for this project:
+
+- `quickstart`
+- `run-locally`
+- `discover-tools`
+- `create-tools`
+- `add-tools`
+- `modify-agent`
+- `deploy`
+
+## Start Here
+
+Use this default sequence unless you have a specific reason to skip steps:
+
+1. `quickstart` (only when environment/auth is not ready)
+2. `discover-tools`
+3. `create-tools` (only if required resources do not exist)
+4. `add-tools`
+5. `modify-agent`
+6. `run-locally`
+7. `deploy`
+
+## Skill Matrix
+
+| Skill | Use For | Primary Outputs |
+| ---- | ---- | ---- |
+| `quickstart` | Local setup and auth bootstrap | working `.env`, profile, MLflow setup |
+| `run-locally` | Local run, smoke tests, troubleshooting | healthy local app and `/invocations` checks |
+| `discover-tools` | Identify available Databricks resources | Genie IDs, endpoint names, integration inventory |
+| `create-tools` | Provision missing workspace resources | new Genie/endpoint/app resources to integrate |
+| `add-tools` | Add routing + resource permissions | updated `backend/subagent_config.py` and `resources/multiagent_app.yml` |
+| `modify-agent` | Change orchestration behavior | updated backend orchestration/request logic |
+| `deploy` | Validate, deploy, and restart by target | deployed app and runtime verification |
+
+## Claude Code Usage (Selected Skills)
+
+Explicitly request selected skills in your prompt. This reduces ambiguity and keeps execution aligned with project conventions.
+
+### Prompt Template
+
+```text
+Use selected skills: <skill-1>[, <skill-2>, ...]
+Goal: <expected result>
+Context: target=<target> profile=<profile> env/files=<optional details>
+Constraints: <guardrails such as bind-not-delete, read-only, no deploy>
+```
+
+### Example Prompts
+
+```text
+Use selected skills: quickstart
+Goal: Initialize this repo and verify local startup.
+Context: profile=dev
+Constraints: Do not deploy.
+```
+
+```text
+Use selected skills: discover-tools, add-tools, run-locally
+Goal: Add a new serving endpoint subagent and validate locally.
+Context: target=dev profile=dev
+Constraints: Keep endpoint values in targets/dev.yml variables.
+```
+
+```text
+Use selected skills: deploy
+Goal: Deploy latest changes to qa and verify logs and status.
+Context: target=qa profile=qa app=multiagent-app-qa
+Constraints: If app exists, bind instead of delete.
+```
+
+## Skill Details
+
+### quickstart
+
+- Command: `uv run quickstart`
+- Use when: first setup, auth/profile setup, missing `.env`, missing `MLFLOW_EXPERIMENT_ID`
+- Verify:
+  - `databricks auth profiles`
+  - `uv run preflight`
+  - `uv run start-app`
+
+### run-locally
+
+- Commands:
+  - `uv run start-app`
+  - `uv run start-server --reload`
+  - `uv run preflight`
+- API smoke test: `http://localhost:8000/invocations`
+
+### discover-tools
+
+- Command: `uv run discover-tools --profile <profile>`
+- Capture:
+  - Genie `space_id`
+  - serving endpoint names
+  - relevant UC resources
+
+### create-tools
+
+- Use when required resources are missing in the target workspace.
+- Typical resources in this repo:
+  - Genie space
+  - Responses-compatible serving endpoint
+  - Databricks app endpoint for specialist routing
+
+### add-tools
+
+- Update routing in `backend/subagent_config.py` (`RAW_SUBAGENTS`).
+- Update app resource permissions in `resources/multiagent_app.yml`.
+- Supported subagent types:
+  - `genie` requires `space_id`
+  - `serving_endpoint` requires `endpoint`
+  - `app` requires `endpoint`
+
+### modify-agent
+
+- Primary files:
+  - `backend/agent.py`
+  - `backend/orchestrator.py`
+  - `backend/subagent_config.py`
+  - `backend/request_utils.py`
+  - `backend/utils.py`
+- Validate:
+  - `python -m py_compile backend/*.py scripts/*.py frontend/*.py`
+  - `uv run preflight`
+
+### deploy
+
+- Standard flow:
+  - `databricks bundle validate -t <target> --profile <profile>`
+  - `databricks bundle deploy -t <target> --profile <profile>`
+  - `databricks bundle run multiagent-app --target <target>`
+- Targets: `dev`, `qa`, `stg`, `prod`
+- Fallback: `bundle sync` plus `apps deploy` if Terraform registry is unavailable
+
+## Operating Guidelines
+
+1. Always pass `--profile` on Databricks CLI commands.
+2. Do not change routing without matching permission/resource updates.
+3. Store environment-specific names and IDs in `targets/*.yml` variables.
+4. Validate locally before deployment.
+5. Run `bundle run` after `bundle deploy` so new code is active.
+6. Prefer app bind over delete when app-name conflicts occur.
+
+## Quick Decision Map
+
+- Cannot run locally: use `quickstart`
+- Need IDs/endpoints: use `discover-tools`
+- Resource missing: use `create-tools`
+- Resource exists but access fails: use `add-tools`
+- Behavior change needed: use `modify-agent`
+- Need local verification: use `run-locally`
+- Ready to ship: use `deploy`
+
+## Related Docs
+
 - `docs/architecture.md`
+- `docs/design.md`
 - `docs/runbook.md`

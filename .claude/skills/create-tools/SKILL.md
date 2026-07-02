@@ -1,26 +1,41 @@
 ---
 name: create-tools
-description: "Create Databricks resources that agents connect to as tools. Use when: (1) User needs to create a Genie space, vector search index, UC function, or UC connection, (2) User says 'create tool', 'set up genie', 'create vector search', 'register MCP server', (3) Before add-tools when the resource doesn't exist yet, (4) User asks 'what do I need to create before adding this tool'."
+description: "Create or prepare Databricks resources this app can route to. Use when: required Genie spaces/endpoints/resources do not exist yet."
 ---
 
-# Create Tool Resources
+# Create Tools
 
-> This skill covers creating the Databricks resources your agent connects to.
-> After creating a resource, use the **add-tools** skill to wire it into your agent and grant permissions.
+Use this skill when the target resource does not exist yet.
 
-## Which resource do you need?
+## Resource Types Typically Used by This Repo
 
-| I want my agent to... | Resource to create | Guide |
-|---|---|---|
-| Answer questions about structured data | Genie space | `examples/genie-space.md` |
-| Search documents / RAG | Vector Search index | `examples/vector-search-index.md` |
-| Call custom SQL/Python logic | UC function | `examples/uc-function.md` |
-| Connect to an external MCP server | UC connection | `examples/uc-connection.md` |
-| Add inline Python tools | Local function tools | `examples/local-python-tools.md` |
+- Genie space (for `type: genie` routes)
+- Model Serving endpoint with Responses API support (for `type: serving_endpoint` routes)
+- Databricks App endpoint (for `type: app` routes)
 
 ## Workflow
 
-1. **Discover** existing resources: `uv run discover-tools` (see **discover-tools** skill)
-2. **Create** the resource if it doesn't exist (this skill)
-3. **Add** the MCP server to your agent code + grant permissions (see **add-tools** skill)
-4. **Deploy** (see **deploy** skill)
+1. Discover current resources:
+
+```bash
+uv run discover-tools --profile <profile>
+```
+
+2. Create missing resources in Databricks (UI or CLI/API based on org standard).
+
+3. Capture final identifiers:
+- Genie: `space_id`
+- Serving endpoint: endpoint name
+- App specialist: app name
+
+4. Wire resources into project config:
+- `backend/subagent_config.py`
+- `targets/<env>.yml` variables
+- `resources/multiagent_app.yml` app resource permissions
+
+5. Validate and deploy:
+
+```bash
+databricks bundle validate -t <target> --profile <profile>
+databricks bundle deploy -t <target> --profile <profile>
+```

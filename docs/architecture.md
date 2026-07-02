@@ -1,35 +1,45 @@
-# Multiagent App on Databricks: Architecture
+# Multiagent App on Databricks: Architecture (High Level)
 
-## Overview
+## Purpose
+
+Describe the high-level system shape, major boundaries, and end-to-end request flow.
+
+## Scope
+
+This document covers high-level architecture only. Implementation-level details are in `docs/design.md`, and operational procedures are in `docs/runbook.md`.
+
+## Current Status (2026-07-01)
+
+- Dev deployment is live with Chainlit enabled.
+- Hosted runtime uses `uv run start-app`.
+- Deployments may intermittently fail when Terraform provider registry is unreachable; direct app deploy is the operational fallback.
+
+## Main Content
+
+### Overview
 
 This project is an MVP multi-agent orchestrator deployed on Databricks Apps.
 It routes user requests to one or more backend capabilities:
 
-- Databricks App-based specialist agents
-- Databricks Genie space tools (via MCP)
-- Databricks Model Serving endpoints
+- Genie space tools (via MCP)
+- Serving endpoint agents
+- Optional app-based specialists
 
-The runtime is built with MLflow Agent Server and OpenAI Agents SDK.
+Runtime stack:
 
-## Current Status (2026-07-01)
+- MLflow Agent Server
+- OpenAI Agents SDK
+- Databricks OpenAI-compatible runtime clients
 
-- Dev deployment is live and serving the Chainlit UI.
-- Hosted app startup is `uv run start-app`, with frontend on app port and backend moved to an internal port at runtime.
-- Bundle validation is stable; bundle deployment may be affected by transient Terraform provider registry connectivity.
-- Direct app deployment from synced bundle source is used as an operational fallback when needed.
-- Genie warehouse and Unity Catalog permissions were updated for both user and app service principal in dev.
+### Major Components
 
-## Core Components
+- Client: Chainlit UI
+- Entry runtime: MLflow Agent Server (`ResponsesAgent`)
+- Orchestration layer: tool selection and response composition
+- Integration layer: MCP + serving endpoint calls
+- Data and semantic layer: Genie space, enterprise data assets
 
-- `backend/start_server.py`: boots MLflow `AgentServer` (`ResponsesAgent`) and exposes the app.
-- `backend/agent.py`: defines orchestrator logic, tool wiring, and invoke/stream handlers.
-- `backend/utils.py`: helper functions for MCP URLs, session metadata, and stream event processing.
-- `scripts/start_app.py`: local process manager for backend and optional frontend chat UI.
-- `frontend/chainlit_app.py`: Chainlit chat UI (served locally via `uv run start-app`).
-- `resources/multiagent-app.yml`: shared Databricks app/resource defaults.
-- `targets/*.yml`: environment-specific workspace, identity, and permission overrides.
-
-## Deployment Diagram
+### Deployment Diagram
 
 ```mermaid
 flowchart LR
@@ -40,11 +50,11 @@ flowchart LR
     end
 
     subgraph Client[Client UI]
-        UI[Chainlit / App UI]
+        UI[Chainlit UI]
     end
 
     subgraph Platform[Databricks App Platform]
-        AS[MLflow AgentServer ResponsesAgent]
+        AS[MLflow Agent Server ResponsesAgent]
         ORCH[Agent Orchestration Service]
         MCP[MCP Integration Layer]
         LLM[Databricks-Provided LLM]
@@ -92,14 +102,14 @@ flowchart LR
     A3 --> MCP
 ```
 
-## Request Flow
+### Request Flow
 
 ```mermaid
 flowchart TD
     U[User]
     U --> UI[Chainlit UI]
     UI --> APP[Databricks App Endpoint]
-    APP --> S[MLflow AgentServer ResponsesAgent]
+    APP --> S[MLflow Agent Server ResponsesAgent]
     S --> H[invoke_handler / stream_handler]
     H --> O[Orchestrator Agent]
 
@@ -117,66 +127,16 @@ flowchart TD
     UI --> U
 ```
 
-## Runtime Model
+### Environment Topology
 
-- `@invoke` handles non-streaming responses.
-- `@stream` handles token/event streaming.
-- MCP servers are health-checked per request and unhealthy sources are excluded.
-- OpenAI/Databricks client calls are traced via MLflow autologging.
-
-## Deployment Topology
-
-Environment targets are configured with Databricks Declarative Automation Bundles:
-
-- `dev`
-- `qa`
-- `stg`
-- `prod`
-
-Each target defines:
-
-- `workspace.host`, `root_path`, `state_path`
-- target variables for endpoint/space/app identities
-- target-specific resource permission overrides
-
-## Permissions Model
-
-Shared defaults are defined in `resources/multiagent-app.yml`.
-Target-specific permission and identity differences are defined in `targets/*.yml` under target-level `resources` overrides.
-
-Current pattern:
-
-- Lower environments can use reduced permission levels (for example, `CAN_EDIT`).
-- Higher environments can use stricter operational levels (for example, `CAN_MANAGE`).
-
-## Local Development
-
-- `uv run start-server`: backend only (Agent Server)
-- `uv run start-app`: backend + frontend process orchestration
-- `uv run start-app --no-ui`: backend only, skip frontend build/run
-
-## Observability
-
-- MLflow tracing for request execution and tool interactions
-- local process logs: `backend.log`, `frontend.log`
-- Databricks app logs in deployed environments
-
-## MVP Boundaries
-
-Included in MVP:
-
-- Multi-backend orchestration and routing
-- Multi-target deployment and config separation
-- Basic tracing/logging and streaming support
-
-Not fully productized in MVP:
-
-- advanced SLO dashboards and alerting
-- full enterprise security automation across all workspace policy variants
-- complete CI/CD guardrail automation
+| Environment | Target | Mode | Profile |
+| ---- | ---- | ---- | ---- |
+| Development | dev | development | dev |
+| QA | qa | development | qa |
+| Staging | stg | production | stg |
+| Production | prod | production | prd |
 
 ## Related Docs
 
-- `README.md`: setup, configuration, and deployment quick paths
-- `docs/agent_framework.md`: developer workflow and implementation guidance
-- `docs/runbook.md`: operations, incident response, and rollback
+- `docs/design.md`: low-level implementation details
+- `docs/runbook.md`: operations and incident handling

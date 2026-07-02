@@ -1,98 +1,33 @@
-# Multiagent App on Databricks: Runbook
+# Multiagent App on Databricks: Runbook (Operations)
 
 ## Purpose
 
-This runbook provides standard operating procedures for running, deploying, validating, and recovering the Multiagent App on Databricks MVP across `dev`, `qa`, `stg`, and `prod`.
+Define operational procedures for validation, deployment, verification, incident response, and rollback.
 
 ## Scope
 
-Covers:
-
-- Local development startup and checks
-- Databricks Declarative Automation Bundles validation and deployment
-- Bitbucket pipeline deployment behavior
-- Post-deploy verification
-- Incident triage and rollback
-
-Does not cover:
-
-- Full enterprise SRE process integration
-- Custom organization-specific on-call escalation tooling
+This document covers deployment and operations only. High-level system context is in `docs/architecture.md`, and implementation details are in `docs/design.md`.
 
 ## Current Status (2026-07-01)
 
-- Dev app is currently running and user-accessible via Chainlit UI.
-- Hosted runtime uses UI mode with internal backend port remapping to avoid 8000/8000 collisions.
-- Bundle validation is healthy; deployment can intermittently fail when Terraform provider registry is unreachable.
-- Operational workaround in dev is bundle sync + direct apps deploy from app default source path.
-- Genie permissions in dev now include SQL warehouse access and required Unity Catalog grants for key reporting tables.
+- Dev app is running and user-accessible.
+- Hosted startup uses UI mode with backend internal port remapping.
+- Bundle validation is stable.
+- Deployment can fail intermittently when Terraform provider registry is unreachable.
+- Fallback workflow is in active use when registry outage occurs.
 
-## System Summary
+## Main Content
 
-- Runtime: MLflow Agent Server + OpenAI Agents SDK
-- Deploy model: Databricks Declarative Automation Bundles
-- Shared resource config: `resources/multiagent-app.yml`
-- Environment overrides: `targets/dev.yml`, `targets/qa.yml`, `targets/stg.yml`, `targets/prod.yml`
-- CI/CD: `bitbucket-pipelines.yml`
+### Pre-Deployment Checklist
 
-## Environments
+- Confirm target (`dev` / `qa` / `stg` / `prod`) and CLI profile.
+- Confirm target variables in `targets/*.yml` are correct.
+- Confirm Databricks credentials/secrets are available for target.
+- Validate bundle before deploy.
 
-| Environment | Target | Mode | Profile |
-| ---- | ---- | ---- | ---- |
-| Development | dev | development | dev |
-| QA | qa | development | qa |
-| Staging | stg | production | stg |
-| Production | prod | production | prd |
+### Standard Deployment Procedure
 
-## Required Inputs
-
-Before any deployment, ensure these are correct:
-
-- Target-specific variables in `targets/*.yml`:
-  - `app_name`
-  - `genie_space_id`
-  - `knowledge_assistant_endpoint_name`
-  - `serving_endpoint_name`
-  - `target_app_name`
-- Databricks CLI profile authentication is valid for the target workspace
-- Bitbucket deployment secrets exist for each environment:
-  - `DATABRICKS_HOST_DEV`, `DATABRICKS_CLIENT_ID_DEV`, `DATABRICKS_CLIENT_SECRET_DEV`
-  - `DATABRICKS_HOST_QA`, `DATABRICKS_CLIENT_ID_QA`, `DATABRICKS_CLIENT_SECRET_QA`
-  - `DATABRICKS_HOST_STG`, `DATABRICKS_CLIENT_ID_STG`, `DATABRICKS_CLIENT_SECRET_STG`
-  - `DATABRICKS_HOST_PROD`, `DATABRICKS_CLIENT_ID_PROD`, `DATABRICKS_CLIENT_SECRET_PROD`
-
-## Local Operations
-
-### Start locally
-
-```bash
-uv run start-app
-```
-
-### Backend-only modes
-
-```bash
-uv run start-server --reload
-uv run start-server --port 8001
-uv run start-server --workers 4
-```
-
-### Preflight checks
-
-```bash
-uv run preflight
-uv run agent-evaluate
-```
-
-### Success criteria
-
-- Local endpoint responds on expected port
-- Streaming and non-streaming requests complete successfully
-- No startup exceptions in server output
-
-## Manual Deployment Procedure
-
-### 1) Validate bundle
+#### 1) Validate bundle
 
 ```bash
 databricks bundle validate -t dev --profile dev
@@ -101,159 +36,122 @@ databricks bundle validate -t stg --profile stg
 databricks bundle validate -t prod --profile prd
 ```
 
-### 2) Deploy bundle
+#### 2) Deploy
 
 ```bash
-databricks bundle deploy -t dev --profile dev
-databricks bundle deploy -t qa --profile qa
-databricks bundle deploy -t stg --profile stg
-databricks bundle deploy -t prod --profile prd
+databricks bundle deploy -t TARGET --profile PROFILE
 ```
 
-### 3) Restart app runtime
+#### 3) Start or restart runtime
 
 ```bash
-databricks bundle run multiagent-app --target dev
+databricks bundle run multiagent-app --target TARGET
 ```
 
-Replace `dev` with `qa`, `stg`, or `prod` as required.
+### Fallback Deployment Procedure
 
-## Bitbucket Deployment Procedure
-
-The pipeline resolves target from deployment environment or branch and loads environment-suffixed secrets.
-
-Branch mapping:
-
-- `dev` -> `dev`
-- `qa` -> `qa`
-- `stg` -> `stg`
-- `prod` -> `prod`
-
-Pipeline stages (shared definition):
-
-1. Install Databricks CLI
-2. Resolve deployment target
-3. Export target-specific credentials
-4. `databricks bundle validate`
-5. `databricks bundle deploy`
-6. `databricks bundle run multiagent-app`
-
-## Post-Deploy Verification
-
-### Functional checks
-
-- Send a non-streaming request and confirm valid response
-- Send a streaming request and confirm event stream continuity
-- Confirm routing to expected backend for at least one known query path
-
-### Configuration checks
-
-- Verify target app name is correct
-- Verify Genie space and serving endpoint resources are reachable
-- Verify app-to-app permission (`CAN_USE`) is effective where configured
-
-### Basic health checks
-
-- No immediate crash/restart loops
-- Logs contain no authentication or missing-resource errors
-
-## Rollback Procedure
-
-Use one of the following methods:
-
-### Option A: Redeploy known good commit through Bitbucket
-
-1. Identify last known good commit for the target branch
-2. Trigger deployment from that commit
-3. Verify using post-deploy checks
-
-### Option B: Redeploy known good local revision manually
-
-1. Checkout known good revision locally
-2. Run:
+Use this procedure when `bundle deploy` fails due to Terraform provider registry availability.
 
 ```bash
-databricks bundle deploy -t TARGET_NAME --profile PROFILE_NAME
-databricks bundle run multiagent-app --target TARGET_NAME
+databricks bundle sync -t TARGET --profile PROFILE
+APP_SRC=$(databricks apps get APP_NAME --output json --profile PROFILE | jq -r '.default_source_code_path')
+databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
-3. Verify using post-deploy checks
+### Existing App Conflict
 
-## Incident Response
+Use this procedure when the app already exists and deployment cannot reconcile state:
 
-### Severity guidance
+```bash
+databricks bundle deployment bind multiagent-app APP_NAME --auto-approve
+databricks bundle deploy -t TARGET --profile PROFILE
+```
 
-- Sev 1: Production unavailable or severe user impact
-- Sev 2: Major degraded function with workaround
-- Sev 3: Non-critical defect, no immediate customer block
+Alternative recreate path:
 
-### Triage checklist
+```bash
+databricks apps delete APP_NAME --profile PROFILE
+databricks bundle deploy -t TARGET --profile PROFILE
+```
 
-1. Identify impacted environment (`dev`/`qa`/`stg`/`prod`)
-2. Check latest deploy event (manual or pipeline)
-3. Review app logs and deployment output
-4. Confirm target secrets and auth profile validity
-5. Confirm resource identities still exist and permissions are intact
-6. Decide rollback vs hotfix
+### Post-Deploy Verification
 
-### Common failure patterns
+- Non-streaming request succeeds.
+- Streaming request succeeds.
+- Tool routing behaves as expected.
+- No startup crash loop.
+- Logs do not contain authentication or missing-resource errors.
 
-- Missing secret for environment suffix
-  - Symptom: pipeline exits with missing required secret
-  - Action: add missing `DATABRICKS_*_ENV` variables
-- App exists but deployment cannot reconcile
-  - Symptom: app conflict or inconsistent apply errors
-  - Action: bind existing app to bundle, then redeploy
-- Deploy succeeded but old behavior persists
-  - Symptom: code/config not reflected at runtime
-  - Action: run `databricks bundle run multiagent-app --target TARGET_NAME`
-- Terraform provider registry unreachable during bundle deploy
-  - Symptom: `Failed to query available provider packages` against `registry.terraform.io`
-  - Action: run `databricks bundle sync` then `databricks apps deploy APP_NAME --source-code-path <default_source_code_path> --mode SNAPSHOT`
-- Genie query fails with table permission errors
-  - Symptom: missing `SELECT` or `USE CATALOG`/`USE SCHEMA` on UC objects
-  - Action: grant catalog/schema usage plus table `SELECT` to both the user and app service principal used by the chat/app
-- Query returns auth/redirect errors
-  - Symptom: query failures with 302/auth behavior
-  - Action: verify OAuth token flow and endpoint URL
-- Backend crashes on startup with credential error
-  - Symptom: `cannot configure default credentials` in backend.log
-  - Action: remove or comment out `DATABRICKS_TOKEN` in `.env`; verify CLI profile is valid with `databricks auth profiles`
+### Local Operations
 
-## Operational Change Checklist
+#### Local startup
 
-Before change:
+```bash
+uv run start-app
+```
 
-- Confirm target and workspace
-- Confirm required secrets and permissions
-- Validate bundle for target
+#### Backend-only
 
-During change:
+```bash
+uv run start-server --reload
+uv run start-app --no-ui
+```
 
-- Deploy using one path only (manual or CI)
-- Capture deploy output and commit identifier
+#### Preflight and evaluation
 
-After change:
+```bash
+uv run preflight
+uv run agent-evaluate
+```
 
-- Run post-deploy verification
-- Record outcome and any follow-up actions
+### Incident Triage
 
-## Ownership and Escalation
+1. Identify impacted environment.
+2. Determine latest deploy source (manual or pipeline).
+3. Review deployment output and app logs.
+4. Verify credentials, app identities, and permissions.
+5. Decide rollback vs forward fix.
 
-Maintain this section with team details:
+### Common Failure Patterns
 
-- Service owner: TEAM_OWNER
-- Primary on-call: PRIMARY_ONCALL
-- Secondary on-call: SECONDARY_ONCALL
-- Escalation channel: INCIDENT_CHANNEL
-- Escalation SLA: ESCALATION_SLA
+- Missing CI secrets for environment.
+- Terraform registry unreachable.
+- Deploy completed but runtime not restarted.
+- Missing Unity Catalog grants for Genie query paths.
+- Invalid local credentials in `.env` (for example stale `DATABRICKS_TOKEN`).
 
-## Revision History
+### Rollback
 
-- 2026-06-30: Initial runbook created for MVP operations and multi-target deployment flow.
+#### Pipeline rollback
+
+- Redeploy the last known good commit through CI.
+
+#### Manual rollback
+
+```bash
+databricks bundle deploy -t TARGET --profile PROFILE
+databricks bundle run multiagent-app --target TARGET
+```
+
+Deploy a known good revision.
+
+### Change Control
+
+Before:
+
+- Validate target configuration and secrets.
+
+During:
+
+- Use one deployment path per change.
+- Capture commit and deployment output.
+
+After:
+
+- Run post-deploy verification.
+- Record outcome and follow-up actions.
 
 ## Related Docs
 
-- `README.md`: project overview and onboarding flow
-- `docs/agent_framework.md`: developer workflow and implementation guidance
-- `docs/architecture.md`: component and request-flow details
+- `docs/architecture.md`: high-level architecture
+- `docs/design.md`: low-level design
