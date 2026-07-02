@@ -18,6 +18,16 @@ import backend.agent  # noqa: E402
 agent_server = AgentServer("ResponsesAgent", enable_chat_proxy=True)
 # Define the app as a module level variable to enable multiple workers
 app = agent_server.app  # noqa: F841
+
+
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "message": "Service is running. Use /health for readiness or /invocations for agent requests.",
+    }
+
+
 try:
     setup_mlflow_git_based_version_tracking()
 except Exception as exc:

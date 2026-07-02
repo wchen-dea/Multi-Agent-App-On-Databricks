@@ -177,8 +177,19 @@ class ProcessManager:
 
     def run(self, backend_args=None):
         load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
-        if not os.environ.get("DATABRICKS_APP_NAME"):
+        in_databricks_app = bool(os.environ.get("DATABRICKS_APP_NAME"))
+        if not in_databricks_app:
             self.check_ports()
+
+        backend_port = self.port
+        if in_databricks_app and not self.no_ui:
+            # Databricks routes public traffic to the app port. Keep UI on that
+            # port and move backend to an internal port to avoid bind conflicts.
+            public_port = int(os.environ.get("DATABRICKS_APP_PORT", os.environ.get("PORT", "8000")))
+            self.frontend_port = public_port
+            if backend_port == public_port:
+                backend_port = public_port + 1
+            self.port = backend_port
 
         if not self.no_ui:
             if not Path("frontend/chainlit_app.py").exists():
@@ -196,8 +207,10 @@ class ProcessManager:
         try:
             # Build backend command, passing through all arguments
             backend_cmd = ["uv", "run", "start-server"]
-            if backend_args:
-                backend_cmd.extend(backend_args)
+            backend_cmd_args = list(backend_args or [])
+            if "--port" not in backend_cmd_args:
+                backend_cmd_args.extend(["--port", str(self.port)])
+            backend_cmd.extend(backend_cmd_args)
 
             # Start backend
             self.backend_process = self.start_process(
@@ -206,7 +219,8 @@ class ProcessManager:
 
             if not self.no_ui:
                 # Start Chainlit chat UI
-                self.frontend_port = int(os.environ.get("CHAT_APP_PORT", os.environ.get("PORT", "3000")))
+                if self.frontend_port is None:
+                    self.frontend_port = int(os.environ.get("CHAT_APP_PORT", os.environ.get("PORT", "3000")))
                 self.frontend_process = self.start_process(
                     [
                         "uv", "run", "chainlit", "run", "frontend/chainlit_app.py",
