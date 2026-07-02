@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Define operational procedures for validation, deployment, verification, incident response, and rollback.
+This is the operator runbook for deployment, verification, incident response, and rollback.
+Use it as the execution reference for target-based releases.
 
 ## Scope
 
@@ -16,16 +17,33 @@ This document covers deployment and operations only. High-level system context i
 - Deployment can fail intermittently when Terraform provider registry is unreachable.
 - Fallback workflow is in active use when registry outage occurs.
 
-## Main Content
+## Start Here
+
+Use this default release sequence:
+
+1. Pre-deployment checklist
+2. Validate bundle
+3. Deploy bundle
+4. Restart app runtime (`bundle run`)
+5. Execute post-deploy verification
+
+For target values:
+
+- `dev`: `--profile dev`
+- `qa`: `--profile qa`
+- `stg`: `--profile stg`
+- `prod`: `--profile prd`
+
+## Run Procedures
 
 ### Pre-Deployment Checklist
 
 - Confirm target (`dev` / `qa` / `stg` / `prod`) and CLI profile.
 - Confirm target variables in `targets/*.yml` are correct.
 - Confirm Databricks credentials/secrets are available for target.
-- Validate bundle before deploy.
+- Confirm no pending manual hotfix state in the target app.
 
-### Standard Deployment Procedure
+### Standard Deployment
 
 #### 1) Validate bundle
 
@@ -82,6 +100,13 @@ databricks bundle deploy -t TARGET --profile PROFILE
 - No startup crash loop.
 - Logs do not contain authentication or missing-resource errors.
 
+Minimum verification commands:
+
+```bash
+databricks apps get APP_NAME --output json --profile PROFILE
+databricks apps logs APP_NAME --follow --profile PROFILE
+```
+
 ### Local Operations
 
 #### Local startup
@@ -111,6 +136,8 @@ uv run agent-evaluate
 3. Review deployment output and app logs.
 4. Verify credentials, app identities, and permissions.
 5. Decide rollback vs forward fix.
+
+Escalate immediately if issue affects multiple targets or production user traffic.
 
 ### Common Failure Patterns
 
@@ -151,7 +178,16 @@ After:
 - Run post-deploy verification.
 - Record outcome and follow-up actions.
 
+## Operating Guidelines
+
+1. Always run `bundle validate` before `bundle deploy`.
+2. Always run `bundle run` after `bundle deploy`.
+3. Always include explicit `--profile` in Databricks CLI commands.
+4. Prefer bind over delete when resolving existing-app conflicts.
+5. Use fallback deploy only when standard deploy is blocked.
+
 ## Related Docs
 
 - `docs/architecture.md`: high-level architecture
 - `docs/design.md`: low-level design
+- `docs/claude.md`: Claude skill usage and operator workflow

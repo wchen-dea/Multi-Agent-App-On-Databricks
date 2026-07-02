@@ -39,6 +39,17 @@ Runtime stack:
 - Integration layer: MCP + serving endpoint calls
 - Data and semantic layer: Genie space, enterprise data assets
 
+### Frameworks and Platform Stack
+
+- FastAPI: backend API framework for agent runtime endpoints.
+- Uvicorn: ASGI server for backend execution.
+- MLflow Agent Server (`ResponsesAgent`): invoke/stream serving runtime.
+- OpenAI Agents SDK: agent orchestration and tool-calling loop.
+- Databricks OpenAI integration: Responses API client integration for Databricks-hosted models and endpoints.
+- Chainlit: conversational frontend UI and streaming interaction layer.
+- Databricks Apps: managed application hosting platform.
+- Databricks Declarative Automation Bundles (DAB): deployment framework with target-based environment management.
+
 ### Deployment Diagram
 
 ```mermaid

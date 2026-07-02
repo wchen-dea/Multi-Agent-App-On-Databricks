@@ -66,6 +66,16 @@ This document covers low-level design and implementation details. High-level arc
   - Detects first failure and exits with failing process code
   - In Databricks hosted runtime, remaps backend to internal port when UI shares app port
 
+### Design Patterns
+
+- Orchestrator pattern: a central orchestrator routes user intent to specialist tools and subagents.
+- Strategy pattern: routing behavior varies by subagent type (`genie`, `serving_endpoint`, `app`) behind a unified interface.
+- Configuration object pattern: typed subagent configuration with centralized validation reduces runtime misconfiguration.
+- Factory/builder pattern: tool and server construction is encapsulated in dedicated builder functions.
+- Adapter pattern: request and error normalization provides a stable internal payload shape.
+- Proxy pattern: Chainlit frontend proxies client interactions to backend invocation handlers.
+- Environment overlay pattern: shared bundle config plus per-target overrides (`dev`, `qa`, `stg`, `prod`).
+
 ## Request Lifecycle
 
 1. UI sends request to the Databricks App endpoint.
