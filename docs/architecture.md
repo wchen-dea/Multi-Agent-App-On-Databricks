@@ -44,14 +44,15 @@ flowchart LR
     end
 
     subgraph Platform[Databricks App Platform]
+        AS[MLflow AgentServer ResponsesAgent]
         ORCH[Agent Orchestration Service]
         MCP[MCP Integration Layer]
         LLM[Databricks-Provided LLM]
 
         subgraph Agents[Multiple Agents]
             A1[Genie Sales Agent]
-            A2[Serving Endpoint Agent: Knowledge Assistant]
-            A3[Serving Endpoint Agent: Lakebase Vector Storage]
+            A2[Serving Endpoint Agent Knowledge Assistant]
+            A3[Serving Endpoint Agent Lakebase Vector Storage]
         end
 
         subgraph Semantic[Business Semantic Layer]
@@ -69,7 +70,8 @@ flowchart LR
     P2 --> UI
     P3 --> UI
 
-    UI --> ORCH
+    UI --> AS
+    AS --> ORCH
     ORCH --> A1
     ORCH --> A2
     ORCH --> A3
@@ -94,17 +96,25 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    U[User / Client] --> A[Databricks App Endpoint]
-    A --> S[MLflow AgentServer ResponsesAgent]
+    U[User]
+    U --> UI[Chainlit UI]
+    UI --> APP[Databricks App Endpoint]
+    APP --> S[MLflow AgentServer ResponsesAgent]
     S --> H[invoke_handler / stream_handler]
     H --> O[Orchestrator Agent]
-    O --> T1[Tool: App Agent via Responses API]
-    O --> T2[Tool: Serving Endpoint via Responses API]
-    O --> T3[Tool: Genie MCP Server]
-    T1 --> R[Response Aggregation]
-    T2 --> R
-    T3 --> R
-    R --> U
+
+    O --> G[Genie Sales Agent via MCP]
+    O --> K[Serving Endpoint Agent knowledge assistant]
+    O --> L[Serving Endpoint Agent lakebase vector storage]
+
+    G --> M[MCP Genie Space]
+    K --> R1[Model Serving Responses API]
+    L --> R1
+
+    M --> R[Response Aggregation]
+    R1 --> R
+    R --> UI
+    UI --> U
 ```
 
 ## Runtime Model

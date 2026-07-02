@@ -47,14 +47,15 @@ flowchart LR
   end
 
   UI[Client UI]
+  AS[MLflow AgentServer ResponsesAgent]
   ORCH[Agent Orchestration]
   MCP[MCP Layer]
   LLM[Databricks LLM]
 
   subgraph Agents[Multiple Agents]
     A1[Genie Sales Agent]
-    A2[Serving Endpoint Agent: Knowledge Assistant]
-    A3[Serving Endpoint Agent: Lakebase Vector Storage]
+    A2[Serving Endpoint Agent Knowledge Assistant]
+    A3[Serving Endpoint Agent Lakebase Vector Storage]
   end
 
   SEM[Business Semantic Layer]
@@ -66,7 +67,8 @@ flowchart LR
   U2 --> UI
   U3 --> UI
 
-  UI --> ORCH
+  UI --> AS
+  AS --> ORCH
   ORCH --> A1
   ORCH --> A2
   ORCH --> A3
