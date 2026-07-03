@@ -74,36 +74,34 @@ def build_subagent_tools(
     """Build callable tools for all non-Genie subagents."""
     dependencies = deps or OrchestratorDependencies()
     tools = []
-    for subagent in subagents:
-        if subagent.is_genie:
-            continue
 
-        async def _call(question: str, _subagent: SubagentConfig = subagent) -> str:
+    def _make_tool(subagent_cfg: SubagentConfig):
+        async def _call(question: str, subagent_cfg_param: SubagentConfig = subagent_cfg) -> str:
             dependencies.message_bus.publish(
                 "tool.call.started",
                 {
-                    "tool_name": _subagent.tool_name,
-                    "subagent": _subagent.name,
-                    "auth_mode": _subagent.auth_mode,
+                    "tool_name": subagent_cfg_param.tool_name,
+                    "subagent": subagent_cfg_param.name,
+                    "auth_mode": subagent_cfg_param.auth_mode,
                 },
             )
-            selected_client = _select_tool_client(_subagent, app_client, obo_client)
+            selected_client = _select_tool_client(subagent_cfg_param, app_client, obo_client)
             _trace_tool_auth(
-                _subagent,
+                subagent_cfg_param,
                 has_user_identity=obo_client is not None,
                 deps=dependencies,
             )
             try:
                 response = await selected_client.responses.create(
-                    model=_subagent.model_name,
+                    model=subagent_cfg_param.model_name,
                     input=[{"role": "user", "content": question}],
                 )
                 dependencies.message_bus.publish(
                     "tool.call.succeeded",
                     {
-                        "tool_name": _subagent.tool_name,
-                        "subagent": _subagent.name,
-                        "auth_mode": _subagent.auth_mode,
+                        "tool_name": subagent_cfg_param.tool_name,
+                        "subagent": subagent_cfg_param.name,
+                        "auth_mode": subagent_cfg_param.auth_mode,
                     },
                 )
                 return response.output_text
@@ -111,17 +109,22 @@ def build_subagent_tools(
                 dependencies.message_bus.publish(
                     "tool.call.failed",
                     {
-                        "tool_name": _subagent.tool_name,
-                        "subagent": _subagent.name,
-                        "auth_mode": _subagent.auth_mode,
+                        "tool_name": subagent_cfg_param.tool_name,
+                        "subagent": subagent_cfg_param.name,
+                        "auth_mode": subagent_cfg_param.auth_mode,
                         "error_type": type(exc).__name__,
                     },
                 )
                 raise
 
-        _call.__name__ = subagent.tool_name
-        _call.__doc__ = subagent.description
-        tools.append(dependencies.function_tool_wrapper(_call))
+        _call.__name__ = subagent_cfg.tool_name
+        _call.__doc__ = subagent_cfg.description
+        return _call
+
+    for subagent in subagents:
+        if subagent.is_genie:
+            continue
+        tools.append(dependencies.function_tool_wrapper(_make_tool(subagent)))
     return tools
 
 
