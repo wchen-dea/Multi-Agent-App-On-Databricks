@@ -22,10 +22,11 @@ This document covers deployment and operations only. High-level system context i
 Use this default release sequence:
 
 1. Pre-deployment checklist
-2. Validate bundle
-3. Deploy bundle
-4. Restart app runtime (`bundle run`)
-5. Execute post-deploy verification
+2. Prepare wheel-first app source
+3. Validate bundle
+4. Deploy bundle
+5. Restart app runtime (`bundle run`)
+6. Execute post-deploy verification
 
 For target values:
 
@@ -70,6 +71,12 @@ Final pre-release checks:
 
 ### Standard Deployment
 
+#### 0) Prepare wheel-first app source
+
+```bash
+uv run prepare-app-source
+```
+
 #### 1) Validate bundle
 
 ```bash
@@ -105,12 +112,12 @@ databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" 
 
 In some environments, `databricks bundle run multiagent-app --target TARGET` may trigger an app deployment from a reduced source payload (for example, only bundle resource files), which can fail startup with errors such as missing command or missing modules.
 
-When this occurs, use the explicit app-source deployment path below to deploy the full synced workspace source:
+When this occurs, use the explicit app-source deployment path below to deploy the wheel-first payload:
 
 ```bash
-databricks bundle sync -t TARGET --profile PROFILE
+uv run prepare-app-source
 databricks apps deploy APP_NAME --profile PROFILE \
-	--source-code-path "/Workspace/Users/<user>/.bundle/<bundle-name>/<target>/files" \
+	--source-code-path "/Workspace/Users/<user>/.bundle/<bundle-name>/<target>/files/.databricks_app_source" \
 	--mode SNAPSHOT
 ```
 

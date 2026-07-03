@@ -147,6 +147,7 @@ uv run start-app
 Validate and deploy:
 
 ```bash
+uv run prepare-app-source
 databricks bundle validate -t dev --profile dev
 databricks bundle deploy -t dev --profile dev
 databricks bundle run multiagent-app --target dev

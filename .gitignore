@@ -54,6 +54,7 @@ bower_components/
 **/.databricks
 **/mlruns/
 load-test-runs/
+!.databricks_app_source/wheels/.gitkeep
 
 # Docs build output
 docs/_build/

@@ -3,9 +3,9 @@ resources:
     multiagent-app:
       name: ${var.app_name}
       description: "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
-      source_code_path: ../
+      source_code_path: ../.databricks_app_source
       config:
-        command: ["uv", "run", "python", "src/scripts/start_app.py"]
+        command: ["python", "launcher.py"]
         env:
         - name: MLFLOW_TRACKING_URI
           value: ${var.mlflow_tracking_uri}

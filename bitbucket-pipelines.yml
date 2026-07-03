@@ -16,7 +16,7 @@ definitions:
       caches:
       - pip
       script:
-      - apt-get update && apt-get install -y curl unzip
+      - apt-get update && apt-get install -y curl unzip jq
       - pip install uv
       - uv sync
       - uv run pytest -q
@@ -59,10 +59,18 @@ definitions:
 
         echo "Using Databricks target: $TARGET"
         export DAB_TARGET="$TARGET"
+        export APP_NAME="${APP_NAME:-multiagent-app-${DAB_TARGET}}"
       - databricks bundle validate --target "$DAB_TARGET"
+      - uv run prepare-app-source
       - databricks bundle deploy --target "$DAB_TARGET"
-      # bundle deploy uploads/configures, bundle run restarts app with new code
-      - databricks bundle run multiagent-app --target "$DAB_TARGET"
+      - databricks bundle sync --target "$DAB_TARGET"
+      - |
+        APP_SRC="$(databricks apps get "$APP_NAME" --output json | jq -r '.default_source_code_path')"
+        if [ -z "$APP_SRC" ] || [ "$APP_SRC" = "null" ]; then
+          echo "Could not resolve default_source_code_path for app: $APP_NAME" >&2
+          exit 1
+        fi
+        databricks apps deploy "$APP_NAME" --source-code-path "$APP_SRC" --mode SNAPSHOT
 pipelines:
   branches:
     dev:
