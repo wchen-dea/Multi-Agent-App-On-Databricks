@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the high-level system shape, major boundaries, and end-to-end request flow.
+Describe the system shape, major boundaries, and end-to-end request flow.
 
 ## Scope
 
@@ -19,7 +19,7 @@ This document covers high-level architecture only. Implementation-level details 
 ### Overview
 
 This project is an MVP multi-agent orchestrator deployed on Databricks Apps.
-It routes user requests to one or more backend capabilities:
+It routes user requests across backend capabilities:
 
 - Genie space tools (via MCP)
 - Serving endpoint agents
@@ -37,6 +37,7 @@ Runtime stack:
 - OpenAI Agents SDK
 - Databricks OpenAI-compatible runtime clients
 - Structured message bus events for request/tool lifecycle observability
+- Governed policy and response-guardrail enforcement for sensitive routes
 
 ### Major Components
 
@@ -179,14 +180,22 @@ If an `obo` tool is required but no forwarded token is available, the tool is ma
 
 ### Message Bus Observability
 
-The runtime publishes structured message-bus events at key orchestration points:
+The runtime publishes message-bus events at key orchestration points:
 
 - Request lifecycle: invoke/stream started, succeeded, failed
 - Runtime auth lifecycle: identity resolved, trace metadata updated, context built
+- Policy lifecycle: subagent allow/deny decision events with reason codes
 - Tool lifecycle: tool call started, succeeded, failed
 - MCP lifecycle: server registered or unavailable
+- Response lifecycle: guardrail pass/block decisions
 
-Current default implementation emits these events as structured logs. This supports an easy path to external bus providers later (for example Kafka or cloud pub/sub) without changing core orchestration logic.
+Supported message bus backends:
+
+- `structured_logging` (default)
+- `noop`
+- `kafka`
+- `rabbitmq`
+- `uc_table` for Unity Catalog-governed Delta audit persistence
 
 ### Environment Topology
 

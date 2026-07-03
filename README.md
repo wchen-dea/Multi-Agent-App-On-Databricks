@@ -1,6 +1,6 @@
 # Multi-Agent App on Databricks
 
-A production-oriented multi-agent AI application on Databricks that combines tool-augmented reasoning, governed enterprise data access, and environment-aware deployment.
+A production-oriented multi-agent AI application on Databricks for governed tool routing, hybrid authorization, and environment-aware deployment.
 
 ## Why This Project
 
@@ -11,13 +11,13 @@ Modern AI applications are moving from single-model chatbots to orchestrated sys
 - Stream responses in real time for interactive UX
 - Ship safely through multi-environment CI/CD
 
-This repository implements that pattern on Databricks with a practical MVP foundation that can scale to enterprise use cases.
+This repository provides an MVP foundation that can scale to enterprise use cases.
 
 ## Technology Perspective
 
-This project is built around current AI app architecture trends and Databricks leading-edge capabilities:
+This project uses a modern AI app stack on Databricks:
 
-- Multi-agent orchestration: One orchestrator routes intent to specialist backends.
+- Multi-agent orchestration: one orchestrator routes intent to specialist backends.
 - Tool-augmented reasoning: Agents call tools instead of relying on model-only answers.
 - Managed app runtime: Databricks Apps hosts the full stack.
 - Agent-native serving runtime: MLflow Agent Server with ResponsesAgent handlers.
@@ -30,19 +30,39 @@ This project is built around current AI app architecture trends and Databricks l
 
 ## Functionality Perspective
 
-From a user and platform viewpoint, the app provides:
+The app provides:
 
 - Unified endpoint: A single app endpoint for multi-tool, multi-agent interaction.
 - Dynamic routing: Requests are routed to Genie, serving endpoints, or app-based specialists.
 - Real-time responses: Streaming responses for conversational latency.
 - Configurable specialist set: Subagents can be added and validated through typed configuration.
 - Auth-aware tool routing: each subagent declares `auth_mode` (`app` or `obo`).
+- Governed routing policy: persona, tool-targeting, identity, and data-classification checks run before tool execution.
+- Response guardrails: governed responses enforce evidence/citation requirements and sensitive-output safety checks.
 - Environment isolation: dev, qa, stg, and prod with explicit target-specific settings.
 - Operational fallback path: Direct apps deploy path when Terraform registry availability is degraded.
 
+## 5-Minute Start
+
+If your Databricks CLI profile is already configured, this is the fastest way to run and validate locally:
+
+```bash
+uv run quickstart
+uv run preflight
+uv run start-app
+```
+
+What this does:
+
+- `quickstart`: prepares local environment and baseline config.
+- `preflight`: validates local startup, health endpoint, and `/invocations` request path.
+- `start-app`: runs backend and UI for interactive testing.
+
+For deployment, continue with the standard bundle flow in Quick Start.
+
 ## Authorization Model
 
-The runtime supports a hybrid authorization model:
+The runtime uses a hybrid authorization model:
 
 - App Authorization: tools execute with the app service principal identity.
 - User Authorization (OBO): tools execute with the forwarded user access token.
@@ -58,16 +78,28 @@ Current defaults:
 - Non-Genie subagents default to `app` when not explicitly set.
 
 The backend loads this file at startup and validates it with typed models in `backend/domain/subagent_config.py`.
-You can override the path with `SUBAGENTS_CONFIG_PATH`.
+Override the path with `SUBAGENTS_CONFIG_PATH`.
 
 If an OBO tool is selected and no forwarded token is present, the runtime raises a clear user-facing authorization error instead of falling back silently.
+
+## Governance and Observability
+
+Lifecycle and policy events are emitted through the message bus. Backend selection is environment-driven:
+
+- `structured_logging` (default)
+- `noop`
+- `kafka`
+- `rabbitmq`
+- `uc_table` (Unity Catalog-governed Delta audit table)
+
+For governed execution, the runtime emits policy allow/deny decisions and response guardrail pass/block outcomes.
 
 ## Chainlit Token Commands
 
 The Chainlit UI supports session-scoped token commands for OBO testing:
 
-- `/token <databricks_access_token>`: stores a forwarded token for this chat session.
-- `/clear-token`: clears the forwarded token from this chat session.
+- `/token <databricks_access_token>`: store a forwarded token for this chat session.
+- `/clear-token`: clear the forwarded token from this chat session.
 
 When set, the UI forwards the token to backend `/invocations` as the `x-forwarded-access-token` header.
 
@@ -82,7 +114,7 @@ High-level request path:
 5. Tools query Genie or serving endpoints.
 6. Unified response is returned to the client.
 
-For detailed architecture and component diagrams, see [docs/architecture.md](docs/architecture.md).
+For architecture diagrams, see [docs/architecture.md](docs/architecture.md).
 
 ## Project Layout
 
@@ -125,12 +157,21 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - `BACKEND_LOG_LEVEL`: backend log level (default `INFO`).
 - `BACKEND_LOG_FORMAT`: Python logging format string for backend logs.
 - `BACKEND_LOG_DATE_FORMAT`: datetime format used in backend logs.
-- `MESSAGE_BUS_BACKEND`: `structured_logging` (default), `noop`, `kafka`, or `rabbitmq`.
+- `MESSAGE_BUS_BACKEND`: `structured_logging` (default), `noop`, `kafka`, `rabbitmq`, or `uc_table`.
 - `MESSAGE_BUS_TOPIC`: topic name used by message bus backends (default `agent-lifecycle-events`).
 - `MESSAGE_BUS_FAIL_OPEN`: when `true`, fallback to structured logging if bus init fails.
 - `KAFKA_BOOTSTRAP_SERVERS`: Kafka bootstrap servers (required for `MESSAGE_BUS_BACKEND=kafka`).
 - `KAFKA_CLIENT_ID`: Kafka client id used by producer (default `multiagent-app`).
 - `RABBITMQ_URL`: RabbitMQ AMQP URL (required for `MESSAGE_BUS_BACKEND=rabbitmq`).
+- `UC_AUDIT_WAREHOUSE_ID`: SQL warehouse id used by `uc_table` message bus backend.
+- `UC_AUDIT_CATALOG`: Unity Catalog catalog where audit events table is stored.
+- `UC_AUDIT_SCHEMA`: Unity Catalog schema where audit events table is stored.
+- `UC_AUDIT_TABLE`: Unity Catalog audit table name (default `agent_lifecycle_events`).
+- `EVAL_MIN_TOOL_CALL_ACCURACY`: release-gate threshold for tool call correctness (default `0.80`).
+- `EVAL_MIN_AUTH_CORRECTNESS`: release-gate threshold for authorization correctness (default `0.90`).
+- `EVAL_MIN_SAFETY`: release-gate threshold for safety KPI (default `0.95`).
+- `EVAL_MIN_GROUNDEDNESS`: release-gate threshold for groundedness KPI (default `0.80`).
+- `EVAL_REQUIRE_ALL_KPIS`: when `true`, fail release gate if any KPI metric is missing.
 
 ## Documentation
 
@@ -142,5 +183,6 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 
 - Development environment is active and user-accessible.
 - Multi-agent routing across Genie and serving endpoints is implemented.
+- Governed routing policy, response guardrails, and lifecycle audit-table persistence are implemented.
 - Deployment pipeline supports dev, qa, stg, and prod target workflows.
 - Operational controls and troubleshooting guidance are documented in the runbook.

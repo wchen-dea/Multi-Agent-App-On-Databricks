@@ -10,8 +10,8 @@ This document covers low-level design and implementation details. High-level arc
 
 ## Current Status
 
-- Runtime is split into focused backend modules (`agent`, `orchestrator`, `subagent_config`, `request_utils`, `utils`).
-- Subagent configuration is typed and validated through dataclass-based models.
+- Runtime uses a layered backend package structure (`backend/api`, `backend/services`, `backend/domain`, `backend/shared`).
+- Dependency composition and protocol-driven DI are centralized in `backend/api/dependencies.py` and `backend/services/interfaces.py`.
 - Local startup orchestration handles hosted-port conflicts in `scripts/start_app.py`.
 
 ## Main Content
@@ -38,9 +38,20 @@ This document covers low-level design and implementation details. High-level arc
 
 - `backend/services/runtime_auth_service.py`
   - Builds request-scoped hybrid auth context (app + optional OBO user identity)
+  - Applies request-time policy filtering before tool/MCP construction
   - Builds auth-aware subagent tools and MCP server definitions
   - Emits auth trace metadata for routing and tool execution
   - Accepts injectable typed dependencies for identity/session/trace/tool-server builders
+
+- `backend/services/policy_service.py`
+  - Builds policy context from request metadata (persona, requested tool, confidence)
+  - Enforces policy decisions by auth mode, identity presence, persona, and data classification
+  - Returns explicit allow/deny decisions with reason codes
+
+- `backend/services/guardrails_service.py`
+  - Applies deterministic response guardrails
+  - Enforces evidence requirement for governed answers
+  - Blocks unsafe output and low-confidence sensitive responses
 
 - `backend/services/orchestrator_service.py`
   - Creates callable tools for configured subagents
@@ -55,7 +66,7 @@ This document covers low-level design and implementation details. High-level arc
 
 - `backend/services/message_bus.py`
   - Provides message bus implementations for lifecycle event publishing
-  - Ships with no-op, structured-logging, Kafka, and RabbitMQ bus implementations
+  - Ships with no-op, structured-logging, Kafka, RabbitMQ, and UC audit-table bus implementations
   - Serves as extension point for external queue/broker integrations
 
 - `backend/domain/subagent_config.py`
@@ -108,11 +119,6 @@ This document covers low-level design and implementation details. High-level arc
 - `frontend/app/ui_content.py`
   - Builds branded welcome panel, starter prompts, and source badges
 
-- `frontend/ui_app.py`
-  - Supports `/token` and `/clear-token` commands for session-scoped OBO token management
-  - Streams SSE token deltas (`response.output_text.delta`) via handler layer
-  - Maintains session-scoped chat history through session utilities
-
 #### Local Process Orchestration
 
 - `scripts/start_app.py`
@@ -138,11 +144,12 @@ This document covers low-level design and implementation details. High-level arc
 
 1. UI sends request to the Databricks App endpoint.
 2. MLflow Agent Server receives and dispatches to invoke/stream handler.
-3. Runtime auth context is built and message-bus auth events are published.
+3. Runtime auth context is built, policy decisions are evaluated, and auth/policy events are published.
 4. Handler opens async context and health-checks MCP servers.
 5. Orchestrator agent is created with available tools.
 6. Runner executes model/tool loop while tool lifecycle bus events are emitted.
-7. Response items/events are normalized and returned to client.
+7. Response guardrails evaluate output against governed constraints before returning content.
+8. Response items/events are normalized and returned to client.
 
 ## Tool Routing Model
 
@@ -173,7 +180,7 @@ If an OBO tool is invoked without a forwarded token, the runtime returns a clear
 ### Bundle Layout
 
 - `databricks.yml`: bundle root config, shared variables, includes
-- `resources/multiagent-app.yml`: shared app defaults and baseline resource permissions
+- `resources/multiagent_app.yml`: shared app defaults and baseline resource permissions
 - `targets/*.yml`: target-specific host, state path, variables, and resource overrides
 
 ### Frequently Used Variables
@@ -198,6 +205,21 @@ Used by local and hosted startup:
 - `BACKEND_LOG_LEVEL`
 - `BACKEND_LOG_FORMAT`
 - `BACKEND_LOG_DATE_FORMAT`
+- `MESSAGE_BUS_BACKEND`
+- `MESSAGE_BUS_TOPIC`
+- `MESSAGE_BUS_FAIL_OPEN`
+- `KAFKA_BOOTSTRAP_SERVERS`
+- `KAFKA_CLIENT_ID`
+- `RABBITMQ_URL`
+- `UC_AUDIT_WAREHOUSE_ID`
+- `UC_AUDIT_CATALOG`
+- `UC_AUDIT_SCHEMA`
+- `UC_AUDIT_TABLE`
+- `EVAL_MIN_TOOL_CALL_ACCURACY`
+- `EVAL_MIN_AUTH_CORRECTNESS`
+- `EVAL_MIN_SAFETY`
+- `EVAL_MIN_GROUNDEDNESS`
+- `EVAL_REQUIRE_ALL_KPIS`
 
 Request header used at runtime for OBO:
 

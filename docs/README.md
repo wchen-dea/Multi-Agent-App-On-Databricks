@@ -1,18 +1,20 @@
 # Documentation Index
 
-Documentation in `docs/` is organized by purpose:
+Use this index to navigate project documentation by purpose:
 
-- [docs/architecture.md](architecture.md): high-level system architecture, boundaries, and request flow.
-- [docs/design.md](design.md): low-level implementation details, runtime behavior, and configuration model.
-- [docs/runbook.md](runbook.md): deployment and operations procedures.
-- [docs/claude.md](claude.md): unified Claude skill summary, usage order, and operating guidelines.
+- [architecture.md](architecture.md): high-level system architecture, boundaries, and request flow.
+- [design.md](design.md): low-level implementation details, runtime behavior, and configuration model.
+- [runbook.md](runbook.md): deployment and operations procedures.
+- [claude.md](claude.md): unified Claude skill summary, usage order, and operating guidelines.
+- [adrs/README.md](adrs/README.md): architecture decision records and long-lived technical decisions.
 
 ## Recommended Read Order
 
-1. [docs/architecture.md](architecture.md)
-2. [docs/design.md](design.md)
-3. [docs/runbook.md](runbook.md)
-4. [docs/claude.md](claude.md)
+1. [architecture.md](architecture.md)
+2. [design.md](design.md)
+3. [runbook.md](runbook.md)
+4. [claude.md](claude.md)
+5. [adrs/README.md](adrs/README.md)
 
 ## Quick Config Snippets
 
@@ -45,4 +47,16 @@ MESSAGE_BUS_FAIL_OPEN=true
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 ```
 
-For full operational guidance, see [docs/runbook.md](runbook.md).
+### Unity Catalog Audit Table
+
+```bash
+MESSAGE_BUS_BACKEND=uc_table
+MESSAGE_BUS_TOPIC=agent-lifecycle-events
+MESSAGE_BUS_FAIL_OPEN=true
+UC_AUDIT_WAREHOUSE_ID=<warehouse-id>
+UC_AUDIT_CATALOG=main
+UC_AUDIT_SCHEMA=observability
+UC_AUDIT_TABLE=agent_lifecycle_events
+```
+
+For deployment and incident procedures, see [runbook.md](runbook.md).
