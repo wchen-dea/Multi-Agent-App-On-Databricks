@@ -7,7 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env", override=True)
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent.parent / ".env", override=True)
 
 
 @dataclass(frozen=True)

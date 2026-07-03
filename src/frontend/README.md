@@ -10,17 +10,17 @@ The frontend is a Chainlit chat UI that:
 
 Primary entrypoint:
 
-- `frontend/ui_app.py`
+- `src/frontend/ui_app.py`
 
 ## Structure
 
-- `frontend/ui_app.py`: thin Chainlit bootstrap module.
-- `frontend/app/handlers.py`: chat lifecycle and backend proxy streaming.
-- `frontend/app/config.py`: typed frontend runtime settings from environment.
-- `frontend/app/session.py`: session state for chat history and forwarded token.
-- `frontend/app/commands.py`: slash command parsing (`/token`, `/clear-token`).
-- `frontend/app/stream_events.py`: stream event parsing and delta extraction.
-- `frontend/app/ui_content.py`: welcome content, starter prompts, source badges.
+- `src/frontend/ui_app.py`: thin Chainlit bootstrap module.
+- `src/frontend/app/handlers.py`: chat lifecycle and backend proxy streaming.
+- `src/frontend/app/config.py`: typed frontend runtime settings from environment.
+- `src/frontend/app/session.py`: session state for chat history and forwarded token.
+- `src/frontend/app/commands.py`: slash command parsing (`/token`, `/clear-token`).
+- `src/frontend/app/stream_events.py`: stream event parsing and delta extraction.
+- `src/frontend/app/ui_content.py`: welcome content, starter prompts, source badges.
 
 ## Local Run
 
@@ -35,7 +35,7 @@ This starts backend + frontend together and configures `API_PROXY` automatically
 Frontend-only run (when backend is already running):
 
 ```bash
-chainlit run frontend/ui_app.py --port 3000
+chainlit run src/frontend/ui_app.py --port 3000
 ```
 
 ## For New Developers
@@ -43,14 +43,14 @@ chainlit run frontend/ui_app.py --port 3000
 Use this workflow when iterating on chat UX or stream rendering:
 
 1. Start full stack from repo root: `uv run start-app`
-2. Edit files under `frontend/app/`
+2. Edit files under `src/frontend/app/`
 3. Re-run and verify behavior in the chat UI
 
 Frontend code paths most often changed:
 
-- `frontend/app/handlers.py`: message loop and stream consumption.
-- `frontend/app/ui_content.py`: welcome panel and prompt starters.
-- `frontend/app/stream_events.py`: event parsing and text delta extraction.
+- `src/frontend/app/handlers.py`: message loop and stream consumption.
+- `src/frontend/app/ui_content.py`: welcome panel and prompt starters.
+- `src/frontend/app/stream_events.py`: event parsing and text delta extraction.
 
 Tip:
 

@@ -14,30 +14,30 @@ Core responsibilities:
 
 Primary entrypoint:
 
-- `backend/api/server.py`
+- `src/backend/api/server.py`
 
 ## Structure
 
-- `backend/api/`
+- `src/backend/api/`
   - `server.py`: AgentServer bootstrap and app startup.
   - `handlers.py`: `@invoke` and `@stream` request handlers.
   - `dependencies.py`: dependency wiring for services.
-- `backend/services/`
+- `src/backend/services/`
   - `orchestrator_service.py`: tool construction and orchestration behavior.
   - `runtime_auth_service.py`: request-scoped auth context and policy-aware availability.
   - `policy_service.py`: deterministic request-time policy checks.
   - `guardrails_service.py`: deterministic response-time guardrail checks.
   - `message_bus.py`: structured logging, noop, Kafka, RabbitMQ, UC table backends.
   - `interfaces.py`: service protocols for dependency injection.
-- `backend/domain/`
+- `src/backend/domain/`
   - `subagent_config.py`: typed config model and validation.
   - `subagents.json`: canonical subagent/tool registry config.
-- `backend/shared/`
+- `src/backend/shared/`
   - `settings.py`: typed runtime settings.
   - `runtime_utils.py`: auth/request helper utilities.
   - `request_utils.py`: request normalization helpers.
   - `logging_config.py`: backend logging configuration.
-- `backend/evaluate_agent.py`: release-gate evaluation runner.
+- `src/backend/evaluate_agent.py`: release-gate evaluation runner.
 
 ## Local Run
 
@@ -61,19 +61,19 @@ Invoke endpoint:
 Use this workflow when iterating on orchestration logic:
 
 1. Start backend: `uv run start-server --reload`
-2. Modify handlers/services under `backend/api/` and `backend/services/`
+2. Modify handlers/services under `src/backend/api/` and `src/backend/services/`
 3. Run targeted tests: `uv run pytest -q`
 
 Most common edit locations:
 
-- `backend/api/handlers.py`: invoke/stream flow and guardrail enforcement.
-- `backend/services/runtime_auth_service.py`: auth context and tool availability.
-- `backend/services/policy_service.py`: deterministic policy checks.
-- `backend/services/orchestrator_service.py`: tool and MCP orchestration behavior.
+- `src/backend/api/handlers.py`: invoke/stream flow and guardrail enforcement.
+- `src/backend/services/runtime_auth_service.py`: auth context and tool availability.
+- `src/backend/services/policy_service.py`: deterministic policy checks.
+- `src/backend/services/orchestrator_service.py`: tool and MCP orchestration behavior.
 
 Tip:
 
-- Keep `backend/domain/subagents.json` and runtime behavior aligned when adding/changing tools.
+- Keep `src/backend/domain/subagents.json` and runtime behavior aligned when adding/changing tools.
 
 ## Key Environment Variables
 

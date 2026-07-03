@@ -10,7 +10,7 @@ from mlflow.genai.agent_server import AgentServer, setup_mlflow_git_based_versio
 from backend.shared.logging_config import configure_logging
 from backend.shared.settings import get_settings
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env", override=True)
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent.parent / ".env", override=True)
 configure_logging(get_settings())
 
 if not os.getenv("MLFLOW_EXPERIMENT_ID", "").strip():

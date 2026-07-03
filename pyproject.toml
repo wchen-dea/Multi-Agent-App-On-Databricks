@@ -38,7 +38,10 @@ setup = [
 default-groups = ["dev", "setup"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend", "scripts"]
+packages = ["src/backend", "src/scripts", "src/frontend"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 
 [project.scripts]

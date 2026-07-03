@@ -21,7 +21,7 @@ from typing import Any, Dict, List
 from databricks.sdk import WorkspaceClient
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env", override=True)
 
 DEFAULT_MAX_RESULTS = 100
 DEFAULT_MAX_SCHEMAS = 25
