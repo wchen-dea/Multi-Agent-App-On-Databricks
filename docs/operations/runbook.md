@@ -101,6 +101,30 @@ APP_SRC=$(databricks apps get APP_NAME --output json --profile PROFILE | jq -r '
 databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
+### Databricks App Source Caveat (Bundle Run)
+
+In some environments, `databricks bundle run multiagent-app --target TARGET` may trigger an app deployment from a reduced source payload (for example, only bundle resource files), which can fail startup with errors such as missing command or missing modules.
+
+When this occurs, use the explicit app-source deployment path below to deploy the full synced workspace source:
+
+```bash
+databricks bundle sync -t TARGET --profile PROFILE
+databricks apps deploy APP_NAME --profile PROFILE \
+	--source-code-path "/Workspace/Users/<user>/.bundle/<bundle-name>/<target>/files" \
+	--mode SNAPSHOT
+```
+
+Then verify:
+
+```bash
+databricks apps get APP_NAME --output json --profile PROFILE
+```
+
+Expected health fields:
+
+- `active_deployment.status.state = SUCCEEDED`
+- `app_status.state = RUNNING`
+
 ### Existing App Conflict
 
 Use this procedure when the app already exists and deployment cannot reconcile state:

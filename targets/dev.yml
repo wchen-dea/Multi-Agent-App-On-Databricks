@@ -15,9 +15,9 @@ targets:
       supply_chain_genie_space_id: ""
       message_bus_backend: structured_logging
       message_bus_topic: agent-lifecycle-events
-      uc_audit_warehouse_id: ""
-      uc_audit_catalog: ""
-      uc_audit_schema: ""
+      uc_audit_warehouse_id: "unused-for-structured-logging"
+      uc_audit_catalog: "main"
+      uc_audit_schema: "observability"
       uc_audit_table: agent_lifecycle_events
     resources:
       apps:
@@ -28,19 +28,4 @@ targets:
             genie_space:
               name: Genie Space
               space_id: ${var.genie_space_id}
-              permission: CAN_RUN
-          - name: store_manager_genie_space
-            genie_space:
-              name: Store Manager Genie Space
-              space_id: ${var.store_manager_genie_space_id}
-              permission: CAN_RUN
-          - name: executive_genie_space
-            genie_space:
-              name: Executive Genie Space
-              space_id: ${var.executive_genie_space_id}
-              permission: CAN_RUN
-          - name: supply_chain_genie_space
-            genie_space:
-              name: Supply Chain Genie Space
-              space_id: ${var.supply_chain_genie_space_id}
               permission: CAN_RUN

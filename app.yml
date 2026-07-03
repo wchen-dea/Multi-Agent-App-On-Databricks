@@ -1,4 +1,5 @@
 command:
 - uv
 - run
-- start-app
+- python
+- src/scripts/start_app.py

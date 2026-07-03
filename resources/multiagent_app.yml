@@ -3,9 +3,9 @@ resources:
     multiagent-app:
       name: ${var.app_name}
       description: "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
-      source_code_path: ./
+      source_code_path: ../
       config:
-        command: ["uv", "run", "start-app"]
+        command: ["uv", "run", "python", "src/scripts/start_app.py"]
         env:
         - name: MLFLOW_TRACKING_URI
           value: ${var.mlflow_tracking_uri}
@@ -37,19 +37,4 @@ resources:
         genie_space:
           name: 'Genie Space'
           space_id: ${var.genie_space_id}
-          permission: 'CAN_RUN'
-      - name: 'store_manager_genie_space'
-        genie_space:
-          name: 'Store Manager Genie Space'
-          space_id: ${var.store_manager_genie_space_id}
-          permission: 'CAN_RUN'
-      - name: 'executive_genie_space'
-        genie_space:
-          name: 'Executive Genie Space'
-          space_id: ${var.executive_genie_space_id}
-          permission: 'CAN_RUN'
-      - name: 'supply_chain_genie_space'
-        genie_space:
-          name: 'Supply Chain Genie Space'
-          space_id: ${var.supply_chain_genie_space_id}
           permission: 'CAN_RUN'
