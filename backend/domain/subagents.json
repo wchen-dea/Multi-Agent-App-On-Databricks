@@ -1,5 +1,41 @@
 [
   {
+    "name": "store_manager_genie",
+    "type": "genie",
+    "auth_mode": "obo",
+    "data_classification": "confidential",
+    "owner": "store-operations",
+    "freshness_sla": "15m",
+    "allowed_personas": ["manager", "operator", "analyst"],
+    "requires_evidence": true,
+    "space_id": "<STORE-MANAGER-GENIE-SPACE-ID>",
+    "description": "Store Manager Genie for operational store performance, labor, and KPI insights."
+  },
+  {
+    "name": "executive_genie",
+    "type": "genie",
+    "auth_mode": "obo",
+    "data_classification": "restricted",
+    "owner": "executive-analytics",
+    "freshness_sla": "1h",
+    "allowed_personas": ["executive", "manager"],
+    "requires_evidence": true,
+    "space_id": "<EXECUTIVE-GENIE-SPACE-ID>",
+    "description": "Executive Genie for portfolio-level executive reporting, trend analysis, and strategic metrics."
+  },
+  {
+    "name": "supply_chain_genie",
+    "type": "genie",
+    "auth_mode": "obo",
+    "data_classification": "confidential",
+    "owner": "supply-chain-analytics",
+    "freshness_sla": "30m",
+    "allowed_personas": ["operator", "manager", "analyst"],
+    "requires_evidence": true,
+    "space_id": "<SUPPLY-CHAIN-GENIE-SPACE-ID>",
+    "description": "Supply Chain Genie for inventory, procurement, logistics, and fulfillment analytics."
+  },
+  {
     "name": "sales_agent",
     "type": "genie",
     "auth_mode": "obo",

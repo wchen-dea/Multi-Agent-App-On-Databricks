@@ -28,6 +28,15 @@ variables:
   genie_space_id:
     description: Genie space ID for the current environment
     default: ""
+  store_manager_genie_space_id:
+    description: Store Manager Genie space ID for the current environment
+    default: ""
+  executive_genie_space_id:
+    description: Executive Genie space ID for the current environment
+    default: ""
+  supply_chain_genie_space_id:
+    description: Supply Chain Genie space ID for the current environment
+    default: ""
   knowledge_assistant_endpoint_name:
     description: Knowledge assistant serving endpoint name for the current environment
     default: ""
