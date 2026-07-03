@@ -12,6 +12,13 @@ SubagentAuthMode = Literal["app", "obo"]
 ALLOWED_SUBAGENT_AUTH_MODES = {"app", "obo"}
 DataClassification = Literal["public", "internal", "confidential", "restricted"]
 ALLOWED_DATA_CLASSIFICATIONS = {"public", "internal", "confidential", "restricted"}
+REQUIRED_METADATA_KEYS = {
+    "data_classification",
+    "owner",
+    "freshness_sla",
+    "allowed_personas",
+    "requires_evidence",
+}
 
 
 @dataclass(frozen=True)
@@ -77,6 +84,13 @@ class SubagentConfig:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "SubagentConfig":
+        missing_metadata = sorted(key for key in REQUIRED_METADATA_KEYS if key not in value)
+        if missing_metadata:
+            raise ValueError(
+                f"Subagent {value.get('name', '<unknown>')!r} missing required metadata fields: "
+                f"{', '.join(missing_metadata)}"
+            )
+
         kind = value["type"]
         auth_mode = value.get("auth_mode", "obo" if kind == "genie" else "app")
         allowed_personas_raw = value.get("allowed_personas", [])
@@ -86,6 +100,18 @@ class SubagentConfig:
             raise ValueError(
                 f"Subagent {value.get('name', '<unknown>')!r} allowed_personas must be a list of strings"
             )
+        if not allowed_personas_raw:
+            raise ValueError(
+                f"Subagent {value.get('name', '<unknown>')!r} must define at least one allowed_personas entry"
+            )
+        owner = value.get("owner")
+        if not isinstance(owner, str) or not owner.strip():
+            raise ValueError(f"Subagent {value.get('name', '<unknown>')!r} must define owner")
+        freshness_sla = value.get("freshness_sla")
+        if not isinstance(freshness_sla, str) or not freshness_sla.strip():
+            raise ValueError(
+                f"Subagent {value.get('name', '<unknown>')!r} must define freshness_sla"
+            )
         try:
             return cls(
                 name=value["name"],
@@ -94,11 +120,11 @@ class SubagentConfig:
                 endpoint=value.get("endpoint"),
                 space_id=value.get("space_id"),
                 auth_mode=auth_mode,
-                data_classification=value.get("data_classification", "internal"),
-                owner=value.get("owner"),
-                freshness_sla=value.get("freshness_sla"),
+                data_classification=value["data_classification"],
+                owner=owner,
+                freshness_sla=freshness_sla,
                 allowed_personas=tuple(allowed_personas_raw),
-                requires_evidence=bool(value.get("requires_evidence", False)),
+                requires_evidence=bool(value["requires_evidence"]),
             )
         except KeyError as exc:
             raise ValueError(f"Subagent config missing required key: {exc}") from exc

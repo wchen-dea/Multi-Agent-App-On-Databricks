@@ -10,12 +10,22 @@ def test_load_subagents_valid_defaults(tmp_path):
         {
             "name": "sales_agent",
             "type": "genie",
+            "data_classification": "confidential",
+            "owner": "sales-analytics",
+            "freshness_sla": "15m",
+            "allowed_personas": ["analyst"],
+            "requires_evidence": True,
             "space_id": "space-1",
             "description": "genie",
         },
         {
             "name": "knowledge_assistant",
             "type": "serving_endpoint",
+            "data_classification": "internal",
+            "owner": "platform-docs",
+            "freshness_sla": "24h",
+            "allowed_personas": ["analyst"],
+            "requires_evidence": False,
             "endpoint": "knowledge_assistant",
             "description": "serving",
         },
@@ -28,8 +38,8 @@ def test_load_subagents_valid_defaults(tmp_path):
     assert len(subagents) == 2
     assert subagents[0].auth_mode == "obo"
     assert subagents[1].auth_mode == "app"
-    assert subagents[0].data_classification == "internal"
-    assert subagents[1].allowed_personas == ()
+    assert subagents[0].data_classification == "confidential"
+    assert subagents[1].allowed_personas == ("analyst",)
 
 
 def test_load_subagents_missing_file_raises_value_error(tmp_path):
@@ -55,6 +65,11 @@ def test_load_subagents_invalid_root_type_raises_value_error(tmp_path):
                 {
                     "name": "bad_kind",
                     "type": "invalid",
+                    "data_classification": "internal",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "allowed_personas": ["analyst"],
+                    "requires_evidence": False,
                     "description": "x",
                     "endpoint": "ep",
                 }
@@ -66,6 +81,11 @@ def test_load_subagents_invalid_root_type_raises_value_error(tmp_path):
                 {
                     "name": "bad_auth",
                     "type": "serving_endpoint",
+                    "data_classification": "internal",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "allowed_personas": ["analyst"],
+                    "requires_evidence": False,
                     "auth_mode": "invalid",
                     "description": "x",
                     "endpoint": "ep",
@@ -78,6 +98,11 @@ def test_load_subagents_invalid_root_type_raises_value_error(tmp_path):
                 {
                     "name": "missing_space",
                     "type": "genie",
+                    "data_classification": "internal",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "allowed_personas": ["analyst"],
+                    "requires_evidence": False,
                     "description": "x",
                 }
             ],
@@ -88,6 +113,11 @@ def test_load_subagents_invalid_root_type_raises_value_error(tmp_path):
                 {
                     "name": "missing_endpoint",
                     "type": "serving_endpoint",
+                    "data_classification": "internal",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "allowed_personas": ["analyst"],
+                    "requires_evidence": False,
                     "description": "x",
                 }
             ],
@@ -98,6 +128,10 @@ def test_load_subagents_invalid_root_type_raises_value_error(tmp_path):
                 {
                     "name": "bad_classification",
                     "type": "serving_endpoint",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "allowed_personas": ["analyst"],
+                    "requires_evidence": False,
                     "description": "x",
                     "endpoint": "ep",
                     "data_classification": "secret",
@@ -110,12 +144,43 @@ def test_load_subagents_invalid_root_type_raises_value_error(tmp_path):
                 {
                     "name": "bad_personas",
                     "type": "serving_endpoint",
+                    "data_classification": "internal",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "requires_evidence": False,
                     "description": "x",
                     "endpoint": "ep",
                     "allowed_personas": "analyst",
                 }
             ],
             "allowed_personas must be a list of strings",
+        ),
+        (
+            [
+                {
+                    "name": "missing_metadata",
+                    "type": "serving_endpoint",
+                    "description": "x",
+                    "endpoint": "ep",
+                }
+            ],
+            "missing required metadata fields",
+        ),
+        (
+            [
+                {
+                    "name": "empty_personas",
+                    "type": "serving_endpoint",
+                    "description": "x",
+                    "endpoint": "ep",
+                    "data_classification": "internal",
+                    "owner": "owner",
+                    "freshness_sla": "1h",
+                    "allowed_personas": [],
+                    "requires_evidence": False,
+                }
+            ],
+            "must define at least one allowed_personas entry",
         ),
     ],
 )
