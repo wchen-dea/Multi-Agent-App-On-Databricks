@@ -47,7 +47,7 @@ The runtime supports a hybrid authorization model:
 - App Authorization: tools execute with the app service principal identity.
 - User Authorization (OBO): tools execute with the forwarded user access token.
 
-Subagent authorization is configured in `backend/subagent_config.py` using `auth_mode`:
+Subagent authorization is configured in `backend/domain/subagents.json` using `auth_mode`:
 
 - `auth_mode: app`
 - `auth_mode: obo`
@@ -56,6 +56,9 @@ Current defaults:
 
 - Genie subagents default to `obo` when not explicitly set.
 - Non-Genie subagents default to `app` when not explicitly set.
+
+The backend loads this file at startup and validates it with typed models in `backend/domain/subagent_config.py`.
+You can override the path with `SUBAGENTS_CONFIG_PATH`.
 
 If an OBO tool is selected and no forwarded token is present, the runtime raises a clear user-facing authorization error instead of falling back silently.
 
@@ -116,6 +119,12 @@ databricks bundle run multiagent-app --target dev
 
 If bundle deploy fails due to Terraform provider registry availability, use the operational fallback documented in [docs/runbook.md](docs/runbook.md).
 
+## Runtime Environment Variables
+
+- `BACKEND_LOG_LEVEL`: backend log level (default `INFO`).
+- `BACKEND_LOG_FORMAT`: Python logging format string for backend logs.
+- `BACKEND_LOG_DATE_FORMAT`: datetime format used in backend logs.
+
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md): high-level architecture and request flow
@@ -128,4 +137,3 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - Multi-agent routing across Genie and serving endpoints is implemented.
 - Deployment pipeline supports dev, qa, stg, and prod target workflows.
 - Operational controls and troubleshooting guidance are documented in the runbook.
-

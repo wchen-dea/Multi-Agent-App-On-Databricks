@@ -37,7 +37,7 @@ Use this default sequence unless you have a specific reason to skip steps:
 | `run-locally` | Local run, smoke tests, troubleshooting | healthy local app and `/invocations` checks |
 | `discover-tools` | Identify available Databricks resources | Genie IDs, endpoint names, integration inventory |
 | `create-tools` | Provision missing workspace resources | new Genie/endpoint/app resources to integrate |
-| `add-tools` | Add routing + resource permissions | updated `backend/subagent_config.py` and `resources/multiagent_app.yml` |
+| `add-tools` | Add routing + resource permissions | updated `backend/domain/subagents.json` and `resources/multiagent_app.yml` |
 | `modify-agent` | Change orchestration behavior | updated backend orchestration/request logic |
 | `deploy` | Validate, deploy, and restart by target | deployed app and runtime verification |
 
@@ -114,7 +114,7 @@ Constraints: If app exists, bind instead of delete.
 
 ### add-tools
 
-- Update routing in `backend/subagent_config.py` (`RAW_SUBAGENTS`).
+- Update routing in `backend/domain/subagents.json`.
 - Update app resource permissions in `resources/multiagent_app.yml`.
 - Supported subagent types:
   - `genie` requires `space_id`
@@ -124,11 +124,13 @@ Constraints: If app exists, bind instead of delete.
 ### modify-agent
 
 - Primary files:
-  - `backend/agent.py`
-  - `backend/orchestrator.py`
-  - `backend/subagent_config.py`
-  - `backend/request_utils.py`
-  - `backend/utils.py`
+  - `backend/api/handlers.py`
+  - `backend/services/orchestrator_service.py`
+  - `backend/services/runtime_auth_service.py`
+  - `backend/domain/subagent_config.py`
+  - `backend/domain/subagents.json`
+  - `backend/shared/request_utils.py`
+  - `backend/shared/runtime_utils.py`
 - Validate:
   - `python -m py_compile backend/*.py scripts/*.py frontend/*.py`
   - `uv run preflight`

@@ -29,7 +29,7 @@ uv run discover-tools --profile <profile>
 - App specialist: app name
 
 4. Wire resources into project config:
-- `backend/subagent_config.py`
+- `backend/domain/subagents.json`
 - `targets/<env>.yml` variables
 - `resources/multiagent_app.yml` app resource permissions
 

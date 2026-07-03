@@ -1,0 +1,23 @@
+[
+  {
+    "name": "sales_agent",
+    "type": "genie",
+    "auth_mode": "obo",
+    "space_id": "01f159f5d91419549020e3609add391c",
+    "description": "Sales agent backed by a Genie space for structured data analysis. Use this for sales metrics, store performance, and operational reporting."
+  },
+  {
+    "name": "knowledge_assistant",
+    "type": "serving_endpoint",
+    "auth_mode": "app",
+    "endpoint": "knowledge_assistant",
+    "description": "Query the knowledge-assistant endpoint on Model Serving. Use this for documentation and policy lookups. The endpoint must have task type agent/v1/responses."
+  },
+  {
+    "name": "lakebase_vector",
+    "type": "serving_endpoint",
+    "auth_mode": "app",
+    "endpoint": "lakebase_vector_storage",
+    "description": "Query the Lakebase-backed vector storage endpoint on Model Serving. Use this for semantic retrieval and vector-search style lookups. The endpoint must have task type agent/v1/responses."
+  }
+]

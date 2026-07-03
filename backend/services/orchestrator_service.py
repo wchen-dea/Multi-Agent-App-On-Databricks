@@ -1,7 +1,9 @@
 """Provide orchestration helpers for tools, MCP connectivity, and agent assembly."""
 
+from dataclasses import dataclass
 import logging
 from contextlib import AsyncExitStack
+from typing import Any
 
 import mlflow
 from agents import Agent, function_tool
@@ -9,15 +11,29 @@ from agents.exceptions import UserError
 from databricks_openai import AsyncDatabricksOpenAI
 from databricks_openai.agents import McpServer
 
-from backend.subagent_config import SubagentConfig
-from backend.utils import RequestIdentityContext, build_mcp_url
+from backend.domain.subagent_config import SubagentConfig
+from backend.services.interfaces import FunctionToolWrapper, McpServerFactory, TraceMetadataUpdater
+from backend.shared.runtime_utils import RequestIdentityContext, build_mcp_url
 
 logger = logging.getLogger(__name__)
 
 
-def _trace_tool_auth(subagent: SubagentConfig, has_user_identity: bool) -> None:
+@dataclass(frozen=True)
+class OrchestratorDependencies:
+    """Injectable dependencies for orchestration service functions."""
+
+    trace_metadata_updater: TraceMetadataUpdater = mlflow.update_current_trace
+    function_tool_wrapper: FunctionToolWrapper = function_tool
+    mcp_server_factory: McpServerFactory = McpServer
+
+
+def _trace_tool_auth(
+    subagent: SubagentConfig,
+    has_user_identity: bool,
+    deps: OrchestratorDependencies,
+) -> None:
     """Record per-tool auth selection metadata in the current trace."""
-    mlflow.update_current_trace(
+    deps.trace_metadata_updater(
         metadata={
             "auth.tool_name": subagent.tool_name,
             "auth.auth_mode_selected": subagent.auth_mode,
@@ -46,17 +62,10 @@ def build_subagent_tools(
     subagents: list[SubagentConfig],
     app_client: AsyncDatabricksOpenAI,
     obo_client: AsyncDatabricksOpenAI | None,
+    deps: OrchestratorDependencies | None = None,
 ) -> list:
-    """Build callable tools for all non-Genie subagents.
-
-    Args:
-        subagents: Parsed subagent configuration entries.
-        app_client: Shared Databricks OpenAI client (app identity).
-        obo_client: Request-scoped Databricks OpenAI client (user identity).
-
-    Returns:
-        List of function_tool wrappers for non-Genie subagents.
-    """
+    """Build callable tools for all non-Genie subagents."""
+    dependencies = deps or OrchestratorDependencies()
     tools = []
     for subagent in subagents:
         if subagent.is_genie:
@@ -64,7 +73,11 @@ def build_subagent_tools(
 
         async def _call(question: str, _subagent: SubagentConfig = subagent) -> str:
             selected_client = _select_tool_client(_subagent, app_client, obo_client)
-            _trace_tool_auth(_subagent, has_user_identity=obo_client is not None)
+            _trace_tool_auth(
+                _subagent,
+                has_user_identity=obo_client is not None,
+                deps=dependencies,
+            )
             response = await selected_client.responses.create(
                 model=_subagent.model_name,
                 input=[{"role": "user", "content": question}],
@@ -73,22 +86,17 @@ def build_subagent_tools(
 
         _call.__name__ = subagent.tool_name
         _call.__doc__ = subagent.description
-        tools.append(function_tool(_call))
+        tools.append(dependencies.function_tool_wrapper(_call))
     return tools
 
 
 def build_mcp_servers(
     subagents: list[SubagentConfig],
     identity_ctx: RequestIdentityContext,
+    deps: OrchestratorDependencies | None = None,
 ) -> tuple[list[McpServer], list[str]]:
-    """Build Genie MCP server definitions from subagent configuration.
-
-    Args:
-        subagents: Parsed subagent configuration entries.
-
-    Returns:
-        Tuple of MCP server definitions and unavailable tool descriptions.
-    """
+    """Build Genie MCP server definitions from subagent configuration."""
+    dependencies = deps or OrchestratorDependencies()
     servers: list[McpServer] = []
     unavailable: list[str] = []
 
@@ -107,7 +115,7 @@ def build_mcp_servers(
             workspace_client = identity_ctx.app_workspace_client
 
         servers.append(
-            McpServer(
+            dependencies.mcp_server_factory(
                 url=build_mcp_url(
                     f"/api/2.0/mcp/genie/{subagent.space_id}",
                     workspace_client=workspace_client,
@@ -123,15 +131,7 @@ def build_mcp_servers(
 async def connect_healthy_mcp_servers(
     stack: AsyncExitStack, servers: list[McpServer]
 ) -> tuple[list[McpServer], list[str]]:
-    """Connect MCP servers and return healthy servers plus unavailable names.
-
-    Args:
-        stack: Async exit stack managing server lifetimes.
-        servers: Candidate MCP server definitions.
-
-    Returns:
-        Tuple of connected healthy servers and unavailable server names.
-    """
+    """Connect MCP servers and return healthy servers plus unavailable names."""
     healthy: list[McpServer] = []
     unavailable: list[str] = []
 
@@ -157,18 +157,7 @@ def create_orchestrator_agent(
     tools: list,
     unavailable_tools: list[str] | None = None,
 ) -> Agent:
-    """Create the orchestrator Agent with runtime-aware tool instructions.
-
-    Args:
-        model: Model identifier for the orchestrator.
-        subagents: Parsed subagent configuration entries.
-        mcp_servers: Connected MCP servers.
-        tools: Non-MCP callable tools.
-        unavailable_tools: Names of unavailable tools to disclose.
-
-    Returns:
-        Configured orchestrator agent instance.
-    """
+    """Create the orchestrator Agent with runtime-aware tool instructions."""
     tool_lines = [
         f"- Genie MCP tools ({subagent.name}, auth={subagent.auth_mode}): {subagent.description}"
         if subagent.is_genie

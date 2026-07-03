@@ -8,13 +8,13 @@ from openai.types.responses.easy_input_message_param import EasyInputMessagePara
 
 
 def to_messages(input_items: Iterable[Any]) -> list[TResponseInputItem]:
-    """Normalize MLflow response items to plain role/content dictionaries.
+    """Normalize MLflow response items to typed Responses input messages.
 
     Args:
         input_items: MLflow input items from a Responses request.
 
     Returns:
-        List of plain role/content dictionaries.
+        List of typed Responses input items.
     """
     messages: list[TResponseInputItem] = []
     for item in input_items:
@@ -34,9 +34,7 @@ def to_messages(input_items: Iterable[Any]) -> list[TResponseInputItem]:
             ]
             content = " ".join(filter(None, texts))
 
-        messages.append(
-            EasyInputMessageParam(role=str(role), content=str(content))
-        )
+        messages.append(EasyInputMessageParam(role=str(role), content=str(content)))
 
     return messages
 

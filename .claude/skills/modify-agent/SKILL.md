@@ -7,21 +7,23 @@ description: "Modify orchestrator behavior, subagent routing, and request handli
 
 ## Primary Files (This Repo)
 
-- `backend/agent.py`: invoke/stream handlers and entry wiring
-- `backend/orchestrator.py`: tool/server construction and orchestrator creation
-- `backend/subagent_config.py`: typed subagent definitions and validation
-- `backend/request_utils.py`: request normalization and MCP error extraction
-- `backend/utils.py`: runtime helpers (workspace host, ids, stream normalization)
+- `backend/api/handlers.py`: invoke/stream handlers and request orchestration wiring
+- `backend/services/orchestrator_service.py`: tool/server construction and orchestrator creation
+- `backend/services/runtime_auth_service.py`: request-scoped hybrid auth context and trace metadata
+- `backend/domain/subagent_config.py`: typed subagent definitions and config loading/validation
+- `backend/domain/subagents.json`: canonical subagent routing configuration
+- `backend/shared/request_utils.py`: request normalization and MCP error extraction
+- `backend/shared/runtime_utils.py`: runtime helpers (workspace host, ids, stream normalization)
 
 ## Common Changes
 
 Change orchestrator behavior:
 
-- Update prompts/model/orchestration logic in `backend/orchestrator.py`.
+- Update prompts/model/orchestration logic in `backend/services/orchestrator_service.py`.
 
 Add or edit subagents:
 
-- Update `RAW_SUBAGENTS` in `backend/subagent_config.py`.
+- Update entries in `backend/domain/subagents.json`.
 - Supported types: `genie`, `serving_endpoint`, `app`.
 - Required fields:
   - `genie`: `space_id`
@@ -29,12 +31,12 @@ Add or edit subagents:
 
 Adjust request/response shaping:
 
-- `backend/request_utils.py` for input normalization and surfaced errors.
+- `backend/shared/request_utils.py` for input normalization and surfaced errors.
 
 ## Validate After Changes
 
 ```bash
-python -m py_compile backend/*.py scripts/*.py frontend/*.py
+python -m py_compile backend/**/*.py scripts/*.py frontend/*.py
 uv run preflight
 uv run start-app
 ```

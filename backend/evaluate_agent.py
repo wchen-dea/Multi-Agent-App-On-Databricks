@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 import mlflow
 from dotenv import load_dotenv
@@ -18,12 +17,15 @@ from mlflow.genai.scorers import (
 from mlflow.genai.simulators import ConversationSimulator
 from mlflow.types.responses import ResponsesAgentRequest
 
+from backend.shared.logging_config import configure_logging
+from backend.shared.settings import get_settings
+
 # Load environment variables from .env when available.
 load_dotenv(dotenv_path=".env", override=True)
-logging.getLogger("mlflow.utils.autologging_utils").setLevel(logging.ERROR)
+configure_logging(get_settings())
 
-# Import the agent module so @invoke-registered handlers are discoverable.
-from backend import agent  # noqa: F401
+# Import handlers so @invoke-registered functions are discoverable.
+import backend.api.handlers  # noqa: F401
 
 # Evaluation dataset.
 # Scorer documentation:

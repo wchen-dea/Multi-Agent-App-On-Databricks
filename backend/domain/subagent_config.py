@@ -1,6 +1,9 @@
 """Define typed subagent configuration models and parsing helpers."""
 
+import json
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, Literal
 
 SubagentKind = Literal["genie", "serving_endpoint", "app"]
@@ -12,6 +15,7 @@ ALLOWED_SUBAGENT_AUTH_MODES = {"app", "obo"}
 @dataclass(frozen=True)
 class SubagentConfig:
     """Canonical configuration model for a single orchestrated subagent."""
+
     name: str
     kind: SubagentKind
     description: str
@@ -37,9 +41,7 @@ class SubagentConfig:
         if self.kind == "genie" and not self.space_id:
             raise ValueError(f"Genie subagent {self.name!r} must define space_id")
         if self.kind != "genie" and not self.endpoint:
-            raise ValueError(
-                f"Non-genie subagent {self.name!r} must define endpoint"
-            )
+            raise ValueError(f"Non-genie subagent {self.name!r} must define endpoint")
 
     @property
     def is_genie(self) -> bool:
@@ -81,40 +83,30 @@ def parse_subagents(raw_subagents: Iterable[dict[str, Any]]) -> list[SubagentCon
     return [SubagentConfig.from_dict(value) for value in raw_subagents]
 
 
-RAW_SUBAGENTS: list[dict[str, Any]] = [
-    {
-        "name": "sales_agent",
-        "type": "genie",
-        "auth_mode": "obo",
-        "space_id": "01f159f5d91419549020e3609add391c",
-        "description": (
-            "Sales agent backed by a Genie space for structured data analysis. "
-            "Use this for sales metrics, store performance, and operational reporting."
-        ),
-    },
-    {
-        "name": "knowledge_assistant",
-        "type": "serving_endpoint",
-        "auth_mode": "app",
-        "endpoint": "knowledge_assistant",
-        "description": (
-            "Query the knowledge-assistant endpoint on Model Serving. "
-            "Use this for documentation and policy lookups. "
-            "The endpoint must have task type agent/v1/responses."
-        ),
-    },
-    {
-        "name": "lakebase_vector",
-        "type": "serving_endpoint",
-        "auth_mode": "app",
-        "endpoint": "lakebase_vector_storage",
-        "description": (
-            "Query the Lakebase-backed vector storage endpoint on Model Serving. "
-            "Use this for semantic retrieval and vector-search style lookups. "
-            "The endpoint must have task type agent/v1/responses."
-        ),
-    },
-]
+DEFAULT_SUBAGENTS_CONFIG_PATH = Path(__file__).with_name("subagents.json")
+SUBAGENTS_CONFIG_PATH_ENV = "SUBAGENTS_CONFIG_PATH"
 
 
-SUBAGENTS = parse_subagents(RAW_SUBAGENTS)
+def load_subagents(config_path: str | Path | None = None) -> list[SubagentConfig]:
+    """Load and validate subagent configuration from JSON file."""
+    resolved_path = Path(
+        config_path or os.getenv(SUBAGENTS_CONFIG_PATH_ENV) or DEFAULT_SUBAGENTS_CONFIG_PATH
+    )
+    try:
+        raw = json.loads(resolved_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Subagent configuration file not found: {resolved_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Subagent configuration file contains invalid JSON: {resolved_path}"
+        ) from exc
+
+    if not isinstance(raw, list):
+        raise ValueError(f"Subagent configuration root must be a list: {resolved_path}")
+    if not all(isinstance(item, dict) for item in raw):
+        raise ValueError(f"Each subagent entry must be an object: {resolved_path}")
+
+    return parse_subagents(raw)
+
+
+SUBAGENTS = load_subagents()

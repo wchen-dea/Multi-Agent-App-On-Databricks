@@ -29,4 +29,4 @@ uv run discover-tools --format json --output tools.json
 
 ## Next Step in This Repo
 
-Update subagent configuration in `backend/subagent_config.py` and required app resource grants in `resources/multiagent_app.yml`, then deploy.
+Update subagent configuration in `backend/domain/subagents.json` and required app resource grants in `resources/multiagent_app.yml`, then deploy.

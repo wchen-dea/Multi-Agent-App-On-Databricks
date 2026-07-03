@@ -44,7 +44,7 @@ packages = ["backend", "scripts"]
 [project.scripts]
 quickstart = "scripts.quickstart:main"
 start-app = "scripts.start_app:main"
-start-server = "backend.start_server:main"
+start-server = "backend.api.server:main"
 agent-evaluate = "backend.evaluate_agent:evaluate"
 discover-tools = "scripts.discover_tools:main"
 preflight = "scripts.preflight:main"

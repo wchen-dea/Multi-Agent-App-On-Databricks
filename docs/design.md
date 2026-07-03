@@ -20,40 +20,63 @@ This document covers low-level design and implementation details. High-level arc
 
 #### Backend Runtime
 
-- `backend/start_server.py`
+- `backend/api/handlers.py`
+  - Defines `invoke_handler` and `stream_handler`
+  - Builds orchestrator agent at request time
+  - Connects healthy MCP servers per request
+  - Converts request payloads into normalized messages
+
+- `backend/api/dependencies.py`
+  - Central composition root for API/service dependencies
+  - Builds default dependency container for handlers, runtime auth, and orchestrator services
+  - Provides single override point for environment-specific wiring
+
+- `backend/api/server.py`
   - Loads `.env`
   - Initializes `AgentServer("ResponsesAgent", enable_chat_proxy=True)`
   - Exposes root route and application startup
 
-- `backend/agent.py`
-  - Defines `invoke_handler` and `stream_handler`
-  - Builds orchestrator agent at request time
+- `backend/services/runtime_auth_service.py`
   - Builds request-scoped hybrid auth context (app + optional OBO user identity)
-  - Connects healthy MCP servers per request
-  - Converts request payloads into normalized messages
+  - Builds auth-aware subagent tools and MCP server definitions
   - Emits auth trace metadata for routing and tool execution
+  - Accepts injectable typed dependencies for identity/session/trace/tool-server builders
 
-- `backend/orchestrator.py`
+- `backend/services/orchestrator_service.py`
   - Creates callable tools for configured subagents
   - Selects app vs OBO client per subagent tool call
   - Builds Genie MCP server list with auth-aware workspace client selection
   - Assembles orchestrator instructions dynamically
+  - Supports injectable dependencies for trace updates, tool wrapping, and MCP server creation
 
-- `backend/subagent_config.py`
+- `backend/services/interfaces.py`
+  - Defines protocol-based service interfaces for dependency injection
+  - Standardizes contracts for auth-context and tool/server builder dependencies
+
+- `backend/domain/subagent_config.py`
   - Typed `SubagentConfig` dataclass
   - Validation for subagent type-specific required fields and `auth_mode`
-  - Source of canonical `SUBAGENTS` configuration
+  - Loads and validates canonical `SUBAGENTS` from external JSON config
 
-- `backend/request_utils.py`
+- `backend/domain/subagents.json`
+  - Canonical subagent configuration data source
+  - Environment-specific path override via `SUBAGENTS_CONFIG_PATH`
+
+- `backend/shared/request_utils.py`
   - Normalizes input items into plain role/content messages
   - Extracts MCP user-facing errors from exception structures
 
-- `backend/utils.py`
+- `backend/shared/runtime_utils.py`
   - Session ID extraction
   - Forwarded token extraction (`x-forwarded-access-token`)
   - Request identity context construction for hybrid auth
   - Workspace host and MCP URL construction
   - Stream event normalization for stable item IDs
+
+- `backend/shared/logging_config.py`
+  - Centralized root logger configuration for backend entrypoints
+  - Consistent level/format/date handling from runtime settings
+  - Suppresses noisy MLflow autologging internals
 
 #### Frontend Runtime
 
@@ -79,6 +102,7 @@ This document covers low-level design and implementation details. High-level arc
 - Policy/strategy blend: runtime auth selection varies by subagent `auth_mode` (`app`, `obo`) under a unified tool interface.
 - Configuration object pattern: typed subagent configuration with centralized validation reduces runtime misconfiguration.
 - Factory/builder pattern: tool and server construction is encapsulated in dedicated builder functions.
+- Dependency injection pattern: handlers/services support typed dependency containers for testability and decoupling.
 - Adapter pattern: request and error normalization provides a stable internal payload shape.
 - Proxy pattern: Chainlit frontend proxies client interactions to backend invocation handlers.
 - Environment overlay pattern: shared bundle config plus per-target overrides (`dev`, `qa`, `stg`, `prod`).
@@ -143,6 +167,9 @@ Used by local and hosted startup:
 - `DATABRICKS_APP_NAME`
 - `DATABRICKS_APP_PORT`
 - `PORT`
+- `BACKEND_LOG_LEVEL`
+- `BACKEND_LOG_FORMAT`
+- `BACKEND_LOG_DATE_FORMAT`
 
 Request header used at runtime for OBO:
 
@@ -158,10 +185,10 @@ Request header used at runtime for OBO:
 
 | File | Responsibility |
 | ---- | -------------- |
-| `backend/agent.py` | Handler entrypoints and orchestration wiring |
-| `backend/orchestrator.py` | Tool/server construction and orchestrator assembly |
-| `backend/subagent_config.py` | Typed subagent definitions and validation |
-| `backend/start_server.py` | MLflow Agent Server bootstrap |
+| `backend/api/handlers.py` | Handler entrypoints and orchestration wiring |
+| `backend/services/orchestrator_service.py` | Tool/server construction and orchestrator assembly |
+| `backend/domain/subagent_config.py` | Typed subagent definitions and validation |
+| `backend/api/server.py` | MLflow Agent Server bootstrap |
 | `frontend/chainlit_app.py` | UI and backend proxy streaming |
 | `scripts/start_app.py` | Local process supervision |
 
