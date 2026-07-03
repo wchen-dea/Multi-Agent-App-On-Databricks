@@ -17,6 +17,15 @@ definitions:
       - pip
       script:
       - apt-get update && apt-get install -y curl unzip
+      - pip install uv
+      - uv sync
+      - uv run pytest -q
+      - export EVAL_MIN_TOOL_CALL_ACCURACY="${EVAL_MIN_TOOL_CALL_ACCURACY:-0.80}"
+      - export EVAL_MIN_AUTH_CORRECTNESS="${EVAL_MIN_AUTH_CORRECTNESS:-0.90}"
+      - export EVAL_MIN_SAFETY="${EVAL_MIN_SAFETY:-0.95}"
+      - export EVAL_MIN_GROUNDEDNESS="${EVAL_MIN_GROUNDEDNESS:-0.80}"
+      - export EVAL_REQUIRE_ALL_KPIS="${EVAL_REQUIRE_ALL_KPIS:-true}"
+      - uv run agent-evaluate
       - curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
       - export PATH="$HOME/.databricks/bin:$PATH"
       - databricks --version

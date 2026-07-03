@@ -245,6 +245,6 @@ Request header used at runtime for OBO:
 ## Related Docs
 
 - `docs/business-specs.md`: business requirements and KPI intent
-- `docs/technical-spaces.md`: centralized technical space boundaries
+- `docs/technical-specs.md`: centralized technical space boundaries
 - `docs/architecture.md`: high-level system view
 - `docs/runbook.md`: deployment and incident procedures

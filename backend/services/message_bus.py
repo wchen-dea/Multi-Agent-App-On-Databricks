@@ -4,7 +4,11 @@ import json
 import logging
 from datetime import datetime, timezone
 from importlib import import_module
+import re
 from uuid import uuid4
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.sql import StatementParameterListItem
 
 from backend.services.interfaces import MessageBus
 from backend.shared.settings import AppSettings, get_settings
@@ -113,6 +117,102 @@ class RabbitMQMessageBus:
             self._conn.close()
 
 
+class UcAuditTableMessageBus:
+    """Persist lifecycle events into a UC-governed Delta table via SQL warehouse."""
+
+    def __init__(
+        self,
+        warehouse_id: str,
+        catalog: str,
+        schema: str,
+        table: str,
+        fail_open: bool,
+        workspace_client: WorkspaceClient | None = None,
+    ) -> None:
+        if not warehouse_id.strip():
+            raise ValueError(
+                "UC_AUDIT_WAREHOUSE_ID must be set when MESSAGE_BUS_BACKEND=uc_table"
+            )
+        if not catalog.strip() or not schema.strip() or not table.strip():
+            raise ValueError(
+                "UC_AUDIT_CATALOG, UC_AUDIT_SCHEMA, and UC_AUDIT_TABLE must all be set "
+                "when MESSAGE_BUS_BACKEND=uc_table"
+            )
+
+        self._warehouse_id = warehouse_id
+        self._catalog = _validate_identifier(catalog, "UC_AUDIT_CATALOG")
+        self._schema = _validate_identifier(schema, "UC_AUDIT_SCHEMA")
+        self._table = _validate_identifier(table, "UC_AUDIT_TABLE")
+        self._fail_open = fail_open
+        self._workspace_client = workspace_client or WorkspaceClient()
+        self._ensure_table()
+
+    @property
+    def _table_fqn(self) -> str:
+        return f"{self._catalog}.{self._schema}.{self._table}"
+
+    def _execute(self, statement: str, parameters: list[StatementParameterListItem]) -> None:
+        self._workspace_client.statement_execution.execute_statement(
+            statement=statement,
+            warehouse_id=self._warehouse_id,
+            parameters=parameters,
+            wait_timeout="10s",
+            catalog=self._catalog,
+            schema=self._schema,
+        )
+
+    def _ensure_table(self) -> None:
+        self._workspace_client.statement_execution.execute_statement(
+            statement=f"CREATE SCHEMA IF NOT EXISTS {self._catalog}.{self._schema}",
+            warehouse_id=self._warehouse_id,
+            wait_timeout="10s",
+        )
+        self._workspace_client.statement_execution.execute_statement(
+            statement=(
+                f"CREATE TABLE IF NOT EXISTS {self._table_fqn} ("
+                "event_date DATE, "
+                "event_id STRING, "
+                "event_type STRING, "
+                "event_ts TIMESTAMP, "
+                "event_payload STRING"
+                ") USING DELTA PARTITIONED BY (event_date)"
+            ),
+            warehouse_id=self._warehouse_id,
+            wait_timeout="10s",
+        )
+
+    def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        event = _build_event(event_type, payload)
+        try:
+            self._execute(
+                statement=(
+                    f"INSERT INTO {self._table_fqn} "
+                    "(event_date, event_id, event_type, event_ts, event_payload) "
+                    "VALUES (CAST(:event_date AS DATE), :event_id, :event_type, "
+                    "CAST(:event_ts AS TIMESTAMP), :event_payload)"
+                ),
+                parameters=[
+                    StatementParameterListItem(name="event_date", type="STRING", value=event["ts"][:10]),
+                    StatementParameterListItem(name="event_id", type="STRING", value=str(event["event_id"])),
+                    StatementParameterListItem(name="event_type", type="STRING", value=str(event["event_type"])),
+                    StatementParameterListItem(name="event_ts", type="STRING", value=str(event["ts"])),
+                    StatementParameterListItem(
+                        name="event_payload",
+                        type="STRING",
+                        value=json.dumps(event.get("payload", {}), default=str),
+                    ),
+                ],
+            )
+        except Exception:
+            if self._fail_open:
+                logger.exception(
+                    "UC audit table write failed; dropping event due to fail-open policy",
+                    extra={"event_type": event_type},
+                )
+                return
+            raise
+
+
 def _build_event(event_type: str, payload: dict[str, object]) -> dict[str, object]:
     """Create a normalized event envelope for all bus backends."""
     return {
@@ -121,6 +221,13 @@ def _build_event(event_type: str, payload: dict[str, object]) -> dict[str, objec
         "ts": datetime.now(timezone.utc).isoformat(),
         "payload": payload,
     }
+
+
+def _validate_identifier(value: str, env_name: str) -> str:
+    """Validate SQL identifier fragments to prevent malformed DDL/DML."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+        raise ValueError(f"{env_name} has invalid identifier: {value!r}")
+    return value
 
 
 def default_message_bus(settings: AppSettings | None = None) -> MessageBus:
@@ -156,6 +263,22 @@ def default_message_bus(settings: AppSettings | None = None) -> MessageBus:
             if cfg.message_bus_fail_open:
                 logger.exception(
                     "RabbitMQ message bus initialization failed; falling back to structured logging"
+                )
+                return StructuredLoggingMessageBus()
+            raise
+    if backend == "uc_table":
+        try:
+            return UcAuditTableMessageBus(
+                warehouse_id=cfg.message_bus_uc_warehouse_id,
+                catalog=cfg.message_bus_uc_catalog,
+                schema=cfg.message_bus_uc_schema,
+                table=cfg.message_bus_uc_table,
+                fail_open=cfg.message_bus_fail_open,
+            )
+        except Exception:
+            if cfg.message_bus_fail_open:
+                logger.exception(
+                    "UC table message bus initialization failed; falling back to structured logging"
                 )
                 return StructuredLoggingMessageBus()
             raise

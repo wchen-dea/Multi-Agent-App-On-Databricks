@@ -19,6 +19,18 @@ resources:
           value: ${var.chat_proxy_timeout_seconds}
         - name: MLFLOW_EXPERIMENT_ID
           value: ${var.mlflow_experiment_id}
+        - name: MESSAGE_BUS_BACKEND
+          value: ${var.message_bus_backend}
+        - name: MESSAGE_BUS_TOPIC
+          value: ${var.message_bus_topic}
+        - name: UC_AUDIT_WAREHOUSE_ID
+          value: ${var.uc_audit_warehouse_id}
+        - name: UC_AUDIT_CATALOG
+          value: ${var.uc_audit_catalog}
+        - name: UC_AUDIT_SCHEMA
+          value: ${var.uc_audit_schema}
+        - name: UC_AUDIT_TABLE
+          value: ${var.uc_audit_table}
       # Resources which this app has access to
       resources:
       - name: 'genie_space'

@@ -78,7 +78,7 @@ Out of scope:
 
 ## Related Documents
 
-- technical-spaces.md
+- technical-specs.md
 - architecture.md
 - design.md
 - runbook.md

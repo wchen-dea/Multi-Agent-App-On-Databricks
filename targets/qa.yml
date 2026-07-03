@@ -12,6 +12,12 @@ targets:
       knowledge_assistant_endpoint_name: "<QA-KNOWLEDGE-ASSISTANT-ENDPOINT>"
       serving_endpoint_name: "<QA-SERVING-ENDPOINT>"
       target_app_name: "<QA-TARGET-APP-NAME>"
+      message_bus_backend: uc_table
+      message_bus_topic: agent-lifecycle-events
+      uc_audit_warehouse_id: "<QA-UC-AUDIT-WAREHOUSE-ID>"
+      uc_audit_catalog: "<QA-UC-AUDIT-CATALOG>"
+      uc_audit_schema: "<QA-UC-AUDIT-SCHEMA>"
+      uc_audit_table: agent_lifecycle_events
     resources:
       apps:
         multiagent-app:

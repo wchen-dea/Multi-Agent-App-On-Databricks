@@ -43,6 +43,31 @@ For target values:
 - Confirm Databricks credentials/secrets are available for target.
 - Confirm no pending manual hotfix state in the target app.
 
+### UC Audit + KPI Gate Release Checklist
+
+Before promoting to `qa`, `stg`, or `prod`, ensure these placeholders are replaced in the corresponding target file:
+
+- `message_bus_backend: uc_table`
+- `uc_audit_warehouse_id: <...>`
+- `uc_audit_catalog: <...>`
+- `uc_audit_schema: <...>`
+- `uc_audit_table: agent_lifecycle_events` (or approved override)
+
+Then verify CI/deployment environment variables are set for evaluation gate thresholds:
+
+- `EVAL_MIN_TOOL_CALL_ACCURACY`
+- `EVAL_MIN_AUTH_CORRECTNESS`
+- `EVAL_MIN_SAFETY`
+- `EVAL_MIN_GROUNDEDNESS`
+- `EVAL_REQUIRE_ALL_KPIS=true`
+
+Final pre-release checks:
+
+- Run `databricks bundle validate -t TARGET --profile PROFILE`
+- Run `uv run pytest -q`
+- Run `uv run agent-evaluate`
+- Confirm no placeholder values remain in target config files.
+
 ### Standard Deployment
 
 #### 1) Validate bundle
@@ -142,6 +167,23 @@ Then start the app as usual:
 uv run start-app
 ```
 
+#### UC audit table message bus local example
+
+Use this when you want lifecycle events written to a Unity Catalog-governed Delta table.
+
+```bash
+MESSAGE_BUS_BACKEND=uc_table
+MESSAGE_BUS_TOPIC=agent-lifecycle-events
+MESSAGE_BUS_FAIL_OPEN=true
+
+UC_AUDIT_WAREHOUSE_ID=<warehouse-id>
+UC_AUDIT_CATALOG=main
+UC_AUDIT_SCHEMA=observability
+UC_AUDIT_TABLE=agent_lifecycle_events
+```
+
+The backend auto-creates the schema/table if they do not exist.
+
 #### Backend-only
 
 ```bash
@@ -154,6 +196,16 @@ uv run start-app --no-ui
 ```bash
 uv run preflight
 uv run agent-evaluate
+```
+
+Release-gate KPI thresholds for evaluation can be tuned with:
+
+```bash
+EVAL_MIN_TOOL_CALL_ACCURACY=0.80
+EVAL_MIN_AUTH_CORRECTNESS=0.90
+EVAL_MIN_SAFETY=0.95
+EVAL_MIN_GROUNDEDNESS=0.80
+EVAL_REQUIRE_ALL_KPIS=true
 ```
 
 #### OBO token simulation in Chainlit UI

@@ -176,7 +176,7 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 ## Documentation
 
 - [docs/business-specs.md](docs/business-specs.md): business requirements, constraints, and success metrics.
-- [docs/technical-spaces.md](docs/technical-spaces.md): centralized technical space map and cross-space contracts.
+- [docs/technical-specs.md](docs/technical-specs.md): centralized technical space map and cross-space contracts.
 - [docs/architecture.md](docs/architecture.md): high-level architecture and request flow
 - [docs/design.md](docs/design.md): low-level module design and runtime behavior
 - [docs/runbook.md](docs/runbook.md): deployment, operations, incident handling, rollback

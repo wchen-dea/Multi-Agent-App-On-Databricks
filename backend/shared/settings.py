@@ -18,6 +18,10 @@ class AppSettings:
     message_bus_kafka_client_id: str = "multiagent-app"
     message_bus_rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     message_bus_fail_open: bool = True
+    message_bus_uc_warehouse_id: str = ""
+    message_bus_uc_catalog: str = ""
+    message_bus_uc_schema: str = ""
+    message_bus_uc_table: str = "agent_lifecycle_events"
 
 
 def get_settings() -> AppSettings:
@@ -39,4 +43,8 @@ def get_settings() -> AppSettings:
         ),
         message_bus_fail_open=os.getenv("MESSAGE_BUS_FAIL_OPEN", "true").lower()
         in {"1", "true", "yes", "on"},
+        message_bus_uc_warehouse_id=os.getenv("UC_AUDIT_WAREHOUSE_ID", ""),
+        message_bus_uc_catalog=os.getenv("UC_AUDIT_CATALOG", ""),
+        message_bus_uc_schema=os.getenv("UC_AUDIT_SCHEMA", ""),
+        message_bus_uc_table=os.getenv("UC_AUDIT_TABLE", "agent_lifecycle_events"),
     )

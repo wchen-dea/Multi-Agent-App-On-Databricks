@@ -37,3 +37,21 @@ variables:
   target_app_name:
     description: Target Databricks app name granted CAN_USE for the current environment
     default: ""
+  message_bus_backend:
+    description: Message bus backend (structured_logging, noop, kafka, rabbitmq, uc_table)
+    default: structured_logging
+  message_bus_topic:
+    description: Message bus topic/exchange name
+    default: agent-lifecycle-events
+  uc_audit_warehouse_id:
+    description: SQL warehouse id used for UC audit table writes
+    default: ""
+  uc_audit_catalog:
+    description: Unity Catalog catalog for audit event table
+    default: ""
+  uc_audit_schema:
+    description: Unity Catalog schema for audit event table
+    default: ""
+  uc_audit_table:
+    description: Unity Catalog table name for lifecycle events
+    default: agent_lifecycle_events

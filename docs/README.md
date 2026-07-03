@@ -3,7 +3,7 @@
 Use this index to navigate project documentation by purpose:
 
 - [business-specs.md](business-specs.md): business goals, requirements, constraints, and success metrics.
-- [technical-spaces.md](technical-spaces.md): centralized technical domain map and ownership boundaries.
+- [technical-specs.md](technical-specs.md): centralized technical domain map and ownership boundaries.
 - [architecture.md](architecture.md): high-level system architecture, boundaries, and request flow.
 - [design.md](design.md): low-level implementation details, runtime behavior, and configuration model.
 - [runbook.md](runbook.md): deployment and operations procedures.
@@ -14,7 +14,7 @@ Use this index to navigate project documentation by purpose:
 
 1. [architecture.md](architecture.md)
 2. [business-specs.md](business-specs.md)
-3. [technical-spaces.md](technical-spaces.md)
+3. [technical-specs.md](technical-specs.md)
 4. [design.md](design.md)
 5. [runbook.md](runbook.md)
 6. [claude.md](claude.md)

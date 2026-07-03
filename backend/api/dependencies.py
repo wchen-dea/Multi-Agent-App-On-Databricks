@@ -17,6 +17,7 @@ from backend.services.orchestrator_service import (
 )
 from backend.services.interfaces import MessageBus
 from backend.services.message_bus import default_message_bus
+from backend.services.guardrails_service import GuardrailResult, evaluate_response_guardrails
 from backend.services.runtime_auth_service import (
     RuntimeAuthContext,
     RuntimeAuthDependencies,
@@ -35,6 +36,7 @@ class HandlerDependencies:
     ]
     mcp_connector: Callable[[AsyncExitStack, list], Awaitable[tuple[list, list[str]]]]
     orchestrator_factory: Callable[[str, list[SubagentConfig], list, list, list[str] | None], Any]
+    guardrails_evaluator: Callable[[str, list[SubagentConfig]], GuardrailResult]
     message_bus: MessageBus
 
 
@@ -80,6 +82,7 @@ def build_dependency_container() -> AppDependencyContainer:
         ),
         mcp_connector=connect_healthy_mcp_servers,
         orchestrator_factory=create_orchestrator_agent,
+        guardrails_evaluator=evaluate_response_guardrails,
         message_bus=bus,
     )
 

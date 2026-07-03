@@ -52,6 +52,7 @@ def test_runtime_auth_publishes_context_events():
     build_runtime_auth_context(request, subagents, app_client=object(), deps=deps)
 
     event_types = [event_type for event_type, _ in bus.events]
+    assert "policy.subagent.decision" in event_types
     assert "auth.identity.resolved" in event_types
     assert "auth.trace.metadata.updated" in event_types
     assert "auth.context.built" in event_types

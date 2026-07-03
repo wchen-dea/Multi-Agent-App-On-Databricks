@@ -10,6 +10,12 @@ targets:
       app_name: multiagent-app-dev
       mlflow_experiment_id: "2041388166228723"
       genie_space_id: "01f159f5d91419549020e3609add391c"
+      message_bus_backend: structured_logging
+      message_bus_topic: agent-lifecycle-events
+      uc_audit_warehouse_id: ""
+      uc_audit_catalog: ""
+      uc_audit_schema: ""
+      uc_audit_table: agent_lifecycle_events
     resources:
       apps:
         multiagent-app:

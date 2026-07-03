@@ -213,9 +213,18 @@ def create_orchestrator_agent(
 ) -> Agent:
     """Create the orchestrator Agent with runtime-aware tool instructions."""
     tool_lines = [
-        f"- Genie MCP tools ({subagent.name}, auth={subagent.auth_mode}): {subagent.description}"
+        (
+            "- Genie MCP tools "
+            f"({subagent.name}, auth={subagent.auth_mode}, "
+            f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
+            f"{subagent.description}"
+        )
         if subagent.is_genie
-        else f"- {subagent.tool_name} (auth={subagent.auth_mode}): {subagent.description}"
+        else (
+            f"- {subagent.tool_name} (auth={subagent.auth_mode}, "
+            f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
+            f"{subagent.description}"
+        )
         for subagent in subagents
     ]
 
@@ -225,6 +234,7 @@ def create_orchestrator_agent(
             "appropriate tool:\n"
             + "\n".join(tool_lines)
             + "\nIf unsure, ask the user for clarification."
+            + "\nFor governed or sensitive answers, include citations or explicit sources."
         )
     else:
         instructions = (
