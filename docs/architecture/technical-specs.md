@@ -117,7 +117,7 @@ Primary implementation:
 - targets/qa.yml
 - targets/stg.yml
 - targets/prod.yml
-- docs/runbook.md
+- docs/operations/runbook.md
 
 ## 9. Validation Specification
 
@@ -137,8 +137,8 @@ Primary implementation:
 
 ## Related Documents
 
-- architecture.md
-- design.md
-- business-specs.md
-- runbook.md
+- system-architecture.md
+- system-design.md
+- ../product/business-specs.md
+- ../operations/runbook.md
 - adrs/README.md

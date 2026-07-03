@@ -6,7 +6,7 @@ Define implementation details, code structure, runtime behavior, and configurati
 
 ## Scope
 
-This document covers low-level design and implementation details. High-level architecture is in `docs/architecture.md`, and operations guidance is in `docs/runbook.md`.
+This document covers low-level design and implementation details. High-level architecture is in `docs/architecture/system-architecture.md`, and operations guidance is in `docs/operations/runbook.md`.
 
 ## Current Status
 
@@ -244,7 +244,7 @@ Request header used at runtime for OBO:
 
 ## Related Docs
 
-- `docs/business-specs.md`: business requirements and KPI intent
-- `docs/technical-specs.md`: centralized technical space boundaries
-- `docs/architecture.md`: high-level system view
-- `docs/runbook.md`: deployment and incident procedures
+- `docs/product/business-specs.md`: business requirements and KPI intent
+- `docs/architecture/technical-specs.md`: centralized technical space boundaries
+- `docs/architecture/system-architecture.md`: high-level system view
+- `docs/operations/runbook.md`: deployment and incident procedures

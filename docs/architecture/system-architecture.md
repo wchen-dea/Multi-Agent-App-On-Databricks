@@ -6,7 +6,7 @@ Describe the system shape, major boundaries, and end-to-end request flow.
 
 ## Scope
 
-This document covers high-level architecture only. Implementation-level details are in `docs/design.md`, and operational procedures are in `docs/runbook.md`.
+This document covers high-level architecture only. Implementation-level details are in `docs/architecture/system-design.md`, and operational procedures are in `docs/operations/runbook.md`.
 
 ## Current Status
 
@@ -208,7 +208,7 @@ Supported message bus backends:
 
 ## Related Docs
 
-- `docs/business-specs.md`: business goals and requirements
-- `docs/technical-specs.md`: centralized technical domain map
-- `docs/design.md`: low-level implementation details
-- `docs/runbook.md`: operations and incident handling
+- `docs/product/business-specs.md`: business goals and requirements
+- `docs/architecture/technical-specs.md`: centralized technical domain map
+- `docs/architecture/system-design.md`: low-level implementation details
+- `docs/operations/runbook.md`: operations and incident handling

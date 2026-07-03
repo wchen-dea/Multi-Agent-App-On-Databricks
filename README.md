@@ -114,7 +114,7 @@ High-level request path:
 5. Tools query Genie or serving endpoints.
 6. Unified response is returned to the client.
 
-For architecture diagrams, see [docs/architecture.md](docs/architecture.md).
+For architecture diagrams, see [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md).
 
 ## Project Layout
 
@@ -150,7 +150,7 @@ databricks bundle deploy -t dev --profile dev
 databricks bundle run multiagent-app --target dev
 ```
 
-If bundle deploy fails due to Terraform provider registry availability, use the operational fallback documented in [docs/runbook.md](docs/runbook.md).
+If bundle deploy fails due to Terraform provider registry availability, use the operational fallback documented in [docs/operations/runbook.md](docs/operations/runbook.md).
 
 ## Runtime Environment Variables
 
@@ -175,11 +175,19 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 
 ## Documentation
 
-- [docs/business-specs.md](docs/business-specs.md): business requirements, constraints, and success metrics.
-- [docs/technical-specs.md](docs/technical-specs.md): centralized technical space map and cross-space contracts.
-- [docs/architecture.md](docs/architecture.md): high-level architecture and request flow
-- [docs/design.md](docs/design.md): low-level module design and runtime behavior
-- [docs/runbook.md](docs/runbook.md): deployment, operations, incident handling, rollback
+- [docs/product/business-specs.md](docs/product/business-specs.md): business requirements, constraints, and success metrics.
+- [docs/architecture/technical-specs.md](docs/architecture/technical-specs.md): centralized technical implementation map and cross-space contracts.
+- [docs/quality/evaluation-spec.md](docs/quality/evaluation-spec.md): datasets, scorers, KPI thresholds, and release-gate rules.
+- [docs/governance/prompt-and-policy-spec.md](docs/governance/prompt-and-policy-spec.md): prompt layering and deterministic policy/guardrail behavior.
+- [docs/architecture/model-and-tool-registry.md](docs/architecture/model-and-tool-registry.md): registry of active tools, endpoints, and Genie spaces.
+- [docs/governance/data-contract-and-lineage-spec.md](docs/governance/data-contract-and-lineage-spec.md): data contracts, classification, and lineage requirements.
+- [docs/governance/security-and-threat-model.md](docs/governance/security-and-threat-model.md): trust boundaries, threats, and controls.
+- [docs/operations/cost-and-performance-budget.md](docs/operations/cost-and-performance-budget.md): latency/cost budget framework and operating signals.
+- [docs/architecture/api-contract-spec.md](docs/architecture/api-contract-spec.md): invoke/stream API contract and error semantics.
+- [docs/operations/postmortem-template.md](docs/operations/postmortem-template.md): incident and regression postmortem template.
+- [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md): high-level architecture and request flow
+- [docs/architecture/system-design.md](docs/architecture/system-design.md): low-level module design and runtime behavior
+- [docs/operations/runbook.md](docs/operations/runbook.md): deployment, operations, incident handling, rollback
 
 ## Current Status
 

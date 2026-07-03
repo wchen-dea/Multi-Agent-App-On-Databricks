@@ -2,23 +2,39 @@
 
 Use this index to navigate project documentation by purpose:
 
-- [business-specs.md](business-specs.md): business goals, requirements, constraints, and success metrics.
-- [technical-specs.md](technical-specs.md): centralized technical domain map and ownership boundaries.
-- [architecture.md](architecture.md): high-level system architecture, boundaries, and request flow.
-- [design.md](design.md): low-level implementation details, runtime behavior, and configuration model.
-- [runbook.md](runbook.md): deployment and operations procedures.
-- [claude.md](claude.md): unified Claude skill summary, usage order, and operating guidelines.
+- [product/business-specs.md](product/business-specs.md): business goals, requirements, constraints, and success metrics.
+- [architecture/technical-specs.md](architecture/technical-specs.md): centralized technical implementation specification.
+- [quality/evaluation-spec.md](quality/evaluation-spec.md): datasets, scorers, KPI thresholds, and release-gate behavior.
+- [governance/prompt-and-policy-spec.md](governance/prompt-and-policy-spec.md): prompt layering, deterministic policy checks, and guardrail controls.
+- [architecture/model-and-tool-registry.md](architecture/model-and-tool-registry.md): inventory of active models, endpoints, and Genie spaces.
+- [governance/data-contract-and-lineage-spec.md](governance/data-contract-and-lineage-spec.md): request and response contracts, sensitivity model, and audit lineage requirements.
+- [governance/security-and-threat-model.md](governance/security-and-threat-model.md): trust boundaries, threats, and implemented controls.
+- [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md): operating budgets, key signals, and release checks.
+- [architecture/api-contract-spec.md](architecture/api-contract-spec.md): API request/response and error behavior contract.
+- [operations/postmortem-template.md](operations/postmortem-template.md): standard template for incidents and release regressions.
+- [architecture/system-architecture.md](architecture/system-architecture.md): high-level system architecture, boundaries, and request flow.
+- [architecture/system-design.md](architecture/system-design.md): low-level implementation details, runtime behavior, and configuration model.
+- [operations/runbook.md](operations/runbook.md): deployment and operations procedures.
+- [internal/claude.md](internal/claude.md): unified Claude skill summary, usage order, and operating guidelines.
 - [adrs/README.md](adrs/README.md): architecture decision records and long-lived technical decisions.
 
 ## Recommended Read Order
 
-1. [architecture.md](architecture.md)
-2. [business-specs.md](business-specs.md)
-3. [technical-specs.md](technical-specs.md)
-4. [design.md](design.md)
-5. [runbook.md](runbook.md)
-6. [claude.md](claude.md)
-7. [adrs/README.md](adrs/README.md)
+1. [architecture/system-architecture.md](architecture/system-architecture.md)
+2. [product/business-specs.md](product/business-specs.md)
+3. [architecture/technical-specs.md](architecture/technical-specs.md)
+4. [architecture/model-and-tool-registry.md](architecture/model-and-tool-registry.md)
+5. [governance/data-contract-and-lineage-spec.md](governance/data-contract-and-lineage-spec.md)
+6. [governance/prompt-and-policy-spec.md](governance/prompt-and-policy-spec.md)
+7. [quality/evaluation-spec.md](quality/evaluation-spec.md)
+8. [governance/security-and-threat-model.md](governance/security-and-threat-model.md)
+9. [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md)
+10. [architecture/api-contract-spec.md](architecture/api-contract-spec.md)
+11. [architecture/system-design.md](architecture/system-design.md)
+12. [operations/runbook.md](operations/runbook.md)
+13. [operations/postmortem-template.md](operations/postmortem-template.md)
+14. [internal/claude.md](internal/claude.md)
+15. [adrs/README.md](adrs/README.md)
 
 ## Quick Config Snippets
 
@@ -63,4 +79,4 @@ UC_AUDIT_SCHEMA=observability
 UC_AUDIT_TABLE=agent_lifecycle_events
 ```
 
-For deployment and incident procedures, see [runbook.md](runbook.md).
+For deployment and incident procedures, see [operations/runbook.md](operations/runbook.md).

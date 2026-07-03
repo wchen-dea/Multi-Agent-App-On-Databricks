@@ -48,4 +48,4 @@ Controls:
 
 - Gate logic and custom auth scorer: [backend/evaluate_agent.py](../../backend/evaluate_agent.py)
 - Pipeline enforcement: [bitbucket-pipelines.yml](../../bitbucket-pipelines.yml)
-- Operational guidance: [docs/runbook.md](../runbook.md)
+- Operational guidance: [docs/operations/runbook.md](../operations/runbook.md)

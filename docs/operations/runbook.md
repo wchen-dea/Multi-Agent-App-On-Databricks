@@ -7,7 +7,7 @@ Use it as the execution reference for target-based releases.
 
 ## Scope
 
-This document covers deployment and operations only. High-level system context is in `docs/architecture.md`, and implementation details are in `docs/design.md`.
+This document covers deployment and operations only. High-level system context is in `docs/architecture/system-architecture.md`, and implementation details are in `docs/architecture/system-design.md`.
 
 ## Current Status
 
@@ -280,6 +280,6 @@ After:
 
 ## Related Docs
 
-- `docs/architecture.md`: high-level architecture
-- `docs/design.md`: low-level design
-- `docs/claude.md`: Claude skill usage and operator workflow
+- `docs/architecture/system-architecture.md`: high-level architecture
+- `docs/architecture/system-design.md`: low-level design
+- `docs/internal/claude.md`: Claude skill usage and operator workflow

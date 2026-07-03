@@ -165,6 +165,6 @@ Constraints: If app exists, bind instead of delete.
 
 ## Related Docs
 
-- `docs/architecture.md`
-- `docs/design.md`
-- `docs/runbook.md`
+- `docs/architecture/system-architecture.md`
+- `docs/architecture/system-design.md`
+- `docs/operations/runbook.md`

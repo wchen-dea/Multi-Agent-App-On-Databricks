@@ -78,8 +78,8 @@ Out of scope:
 
 ## Related Documents
 
-- technical-specs.md
-- architecture.md
-- design.md
-- runbook.md
-- adrs/README.md
+- ../architecture/technical-specs.md
+- ../architecture/system-architecture.md
+- ../architecture/system-design.md
+- ../operations/runbook.md
+- ../adrs/README.md
