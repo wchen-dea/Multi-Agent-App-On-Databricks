@@ -247,4 +247,5 @@ Request header used at runtime for OBO:
 - `docs/product/business-specs.md`: business requirements and KPI intent
 - `docs/architecture/technical-specs.md`: centralized technical space boundaries
 - `docs/architecture/system-architecture.md`: high-level system view
+- `docs/architecture/design-artifacts/README.md`: centralized full design diagram set across concept, logical, and deployment phases
 - `docs/operations/runbook.md`: deployment and incident procedures

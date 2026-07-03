@@ -189,6 +189,7 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - [docs/operations/postmortem-template.md](docs/operations/postmortem-template.md): incident and regression postmortem template.
 - [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md): high-level architecture and request flow
 - [docs/architecture/system-design.md](docs/architecture/system-design.md): low-level module design and runtime behavior
+- [docs/architecture/design-artifacts/README.md](docs/architecture/design-artifacts/README.md): centralized concept, logical, and deployment design diagrams
 - [docs/operations/runbook.md](docs/operations/runbook.md): deployment, operations, incident handling, rollback
 
 ## Current Status

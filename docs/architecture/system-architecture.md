@@ -211,4 +211,5 @@ Supported message bus backends:
 - `docs/product/business-specs.md`: business goals and requirements
 - `docs/architecture/technical-specs.md`: centralized technical domain map
 - `docs/architecture/system-design.md`: low-level implementation details
+- `docs/architecture/design-artifacts/README.md`: centralized full design diagram set across concept, logical, and deployment phases
 - `docs/operations/runbook.md`: operations and incident handling

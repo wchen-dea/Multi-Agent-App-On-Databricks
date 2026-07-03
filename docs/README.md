@@ -14,6 +14,7 @@ Use this index to navigate project documentation by purpose:
 - [operations/postmortem-template.md](operations/postmortem-template.md): standard template for incidents and release regressions.
 - [architecture/system-architecture.md](architecture/system-architecture.md): high-level system architecture, boundaries, and request flow.
 - [architecture/system-design.md](architecture/system-design.md): low-level implementation details, runtime behavior, and configuration model.
+- [architecture/design-artifacts/README.md](architecture/design-artifacts/README.md): centralized concept, logical, and deployment diagram set.
 - [operations/runbook.md](operations/runbook.md): deployment and operations procedures.
 - [internal/claude.md](internal/claude.md): unified Claude skill summary, usage order, and operating guidelines.
 - [adrs/README.md](adrs/README.md): architecture decision records and long-lived technical decisions.
@@ -31,10 +32,11 @@ Use this index to navigate project documentation by purpose:
 9. [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md)
 10. [architecture/api-contract-spec.md](architecture/api-contract-spec.md)
 11. [architecture/system-design.md](architecture/system-design.md)
-12. [operations/runbook.md](operations/runbook.md)
-13. [operations/postmortem-template.md](operations/postmortem-template.md)
-14. [internal/claude.md](internal/claude.md)
-15. [adrs/README.md](adrs/README.md)
+12. [architecture/design-artifacts/README.md](architecture/design-artifacts/README.md)
+13. [operations/runbook.md](operations/runbook.md)
+14. [operations/postmortem-template.md](operations/postmortem-template.md)
+15. [internal/claude.md](internal/claude.md)
+16. [adrs/README.md](adrs/README.md)
 
 ## Quick Config Snippets
 
