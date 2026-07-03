@@ -73,8 +73,12 @@ flowchart LR
     subgraph Platform[Databricks App Platform]
         AS[MLflow Agent Server ResponsesAgent]
         ORCH[Agent Orchestration Service]
+        AUTH[Hybrid Auth Router auth_mode app or obo]
         MCP[MCP Integration Layer]
         LLM[Databricks-Provided LLM]
+
+        APPID[App Identity Service Principal]
+        OBOID[User Identity OBO Token]
 
         subgraph Agents[Multiple Agents]
             A1[Genie Sales Agent]
@@ -99,6 +103,9 @@ flowchart LR
 
     UI --> AS
     AS --> ORCH
+    ORCH --> AUTH
+    AUTH -->|app| APPID
+    AUTH -->|obo| OBOID
     ORCH --> A1
     ORCH --> A2
     ORCH --> A3
@@ -109,6 +116,8 @@ flowchart LR
     ORCH --> LLM
 
     ORCH --> MCP
+    APPID --> MCP
+    OBOID --> MCP
     MCP --> BSL
     BSL --> KB
     BSL --> FS
@@ -117,6 +126,9 @@ flowchart LR
     A1 --> MCP
     A2 --> MCP
     A3 --> MCP
+
+    classDef auth fill:#eef7ff,stroke:#2b6cb0,stroke-width:1px;
+    class AUTH,APPID,OBOID auth;
 ```
 
 ### Request Flow
@@ -129,7 +141,13 @@ flowchart TD
     UI --> APP[Databricks App Endpoint]
     APP --> S[MLflow Agent Server ResponsesAgent]
     S --> H[invoke_handler / stream_handler]
-    H --> O[Orchestrator Agent]
+    H --> C[Build Runtime Identity Context]
+    C --> D{Subagent auth_mode}
+    D -->|app| AID[Use App Identity Client]
+    D -->|obo + token| OID[Use User OBO Identity Client]
+    D -->|obo + no token| ERR[Mark Tool Unavailable or Raise Auth Error]
+    AID --> O[Orchestrator Agent]
+    OID --> O
 
     O --> G[Genie Sales Agent via MCP]
     O --> K[Serving Endpoint Agent knowledge assistant]
@@ -141,8 +159,12 @@ flowchart TD
 
     M --> R[Response Aggregation]
     R1 --> R
+    ERR --> R
     R --> UI
     UI --> U
+
+    classDef auth fill:#eef7ff,stroke:#2b6cb0,stroke-width:1px;
+    class C,D,AID,OID,ERR auth;
 ```
 
 ### Authorization Routing
