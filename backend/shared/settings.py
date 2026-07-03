@@ -1,6 +1,7 @@
 """Runtime settings for backend services."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 import os
 
 
@@ -24,6 +25,7 @@ class AppSettings:
     message_bus_uc_table: str = "agent_lifecycle_events"
 
 
+@lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
     """Load backend runtime settings from environment variables."""
     return AppSettings(

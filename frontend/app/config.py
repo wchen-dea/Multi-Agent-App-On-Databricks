@@ -1,6 +1,7 @@
 """Configuration and environment loading for frontend chat UI."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 import os
 from pathlib import Path
 
@@ -23,6 +24,7 @@ class FrontendSettings:
     clear_token_command: str = "/clear-token"
 
 
+@lru_cache(maxsize=1)
 def get_settings() -> FrontendSettings:
     """Load frontend settings from environment variables."""
     return FrontendSettings(

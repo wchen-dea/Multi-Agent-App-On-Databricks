@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 import logging
 from typing import AsyncGenerator, AsyncIterator, Optional
-from uuid import uuid4
 
 from agents.result import StreamEvent
 from databricks.sdk import WorkspaceClient
@@ -90,12 +89,14 @@ async def process_agent_stream_events(
     async_stream: AsyncIterator[StreamEvent],
 ) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
     """Normalize stream event item IDs for downstream consumers."""
-    curr_item_id = str(uuid4())
+    item_counter = 0
+    curr_item_id = f"item_{item_counter}"
     async for event in async_stream:
         if event.type == "raw_response_event":
             event_data = event.data.model_dump()
             if event_data["type"] == "response.output_item.added":
-                curr_item_id = str(uuid4())
+                item_counter += 1
+                curr_item_id = f"item_{item_counter}"
                 event_data["item"]["id"] = curr_item_id
             elif event_data.get("item") is not None and event_data["item"].get("id") is not None:
                 event_data["item"]["id"] = curr_item_id

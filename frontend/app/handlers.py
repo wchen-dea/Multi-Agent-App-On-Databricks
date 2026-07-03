@@ -17,7 +17,7 @@ from frontend.app.session import (
     set_history,
     token_status_line,
 )
-from frontend.app.stream_events import extract_delta, extract_source_hints
+from frontend.app.stream_events import update_stream_hints
 from frontend.app.ui_content import source_badge_line, starter_prompts, welcome_message
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ async def on_message(message: cl.Message) -> None:
     response_msg = cl.Message(content="Working on your request...")
     await response_msg.send()
 
-    full_text = ""
+    full_text_parts: list[str] = []
     source_categories: set[str] = set()
     source_tools: set[str] = set()
 
@@ -145,14 +145,11 @@ async def on_message(message: cl.Message) -> None:
                     except json.JSONDecodeError:
                         continue
 
-                    categories, tools = extract_source_hints(event)
-                    source_categories.update(categories)
-                    source_tools.update(tools)
+                    delta = update_stream_hints(event, source_categories, source_tools)
 
-                    delta = extract_delta(event)
                     if delta:
                         await response_msg.stream_token(delta)
-                        full_text += delta
+                        full_text_parts.append(delta)
 
     except httpx.ConnectError:
         await _set_error(
@@ -182,10 +179,11 @@ async def on_message(message: cl.Message) -> None:
     badge_line = source_badge_line(source_categories, source_tools)
     if badge_line:
         await response_msg.stream_token(badge_line)
-        full_text += badge_line
+        full_text_parts.append(badge_line)
 
     await response_msg.update()
 
+    full_text = "".join(full_text_parts)
     if full_text:
         history.append({"role": "assistant", "content": full_text})
         set_history(history)
