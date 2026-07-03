@@ -8,6 +8,7 @@ Use this index to navigate project documentation by purpose:
 - [governance/prompt-and-policy-spec.md](governance/prompt-and-policy-spec.md): prompt layering, deterministic policy checks, and guardrail controls.
 - [architecture/model-and-tool-registry.md](architecture/model-and-tool-registry.md): inventory of active models, endpoints, and Genie spaces.
 - [governance/data-contract-and-lineage-spec.md](governance/data-contract-and-lineage-spec.md): request and response contracts, sensitivity model, and audit lineage requirements.
+- [governance/business-semantics-and-ai-metadata-spec.md](governance/business-semantics-and-ai-metadata-spec.md): canonical business semantics and required AI metadata contract.
 - [governance/security-and-threat-model.md](governance/security-and-threat-model.md): trust boundaries, threats, and implemented controls.
 - [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md): operating budgets, key signals, and release checks.
 - [architecture/api-contract-spec.md](architecture/api-contract-spec.md): API request/response and error behavior contract.
@@ -26,17 +27,18 @@ Use this index to navigate project documentation by purpose:
 3. [architecture/technical-specs.md](architecture/technical-specs.md)
 4. [architecture/model-and-tool-registry.md](architecture/model-and-tool-registry.md)
 5. [governance/data-contract-and-lineage-spec.md](governance/data-contract-and-lineage-spec.md)
-6. [governance/prompt-and-policy-spec.md](governance/prompt-and-policy-spec.md)
-7. [quality/evaluation-spec.md](quality/evaluation-spec.md)
-8. [governance/security-and-threat-model.md](governance/security-and-threat-model.md)
-9. [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md)
-10. [architecture/api-contract-spec.md](architecture/api-contract-spec.md)
-11. [architecture/system-design.md](architecture/system-design.md)
-12. [architecture/design-artifacts/README.md](architecture/design-artifacts/README.md)
-13. [operations/runbook.md](operations/runbook.md)
-14. [operations/postmortem-template.md](operations/postmortem-template.md)
-15. [internal/claude.md](internal/claude.md)
-16. [adrs/README.md](adrs/README.md)
+6. [governance/business-semantics-and-ai-metadata-spec.md](governance/business-semantics-and-ai-metadata-spec.md)
+7. [governance/prompt-and-policy-spec.md](governance/prompt-and-policy-spec.md)
+8. [quality/evaluation-spec.md](quality/evaluation-spec.md)
+9. [governance/security-and-threat-model.md](governance/security-and-threat-model.md)
+10. [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md)
+11. [architecture/api-contract-spec.md](architecture/api-contract-spec.md)
+12. [architecture/system-design.md](architecture/system-design.md)
+13. [architecture/design-artifacts/README.md](architecture/design-artifacts/README.md)
+14. [operations/runbook.md](operations/runbook.md)
+15. [operations/postmortem-template.md](operations/postmortem-template.md)
+16. [internal/claude.md](internal/claude.md)
+17. [adrs/README.md](adrs/README.md)
 
 ## Quick Config Snippets
 
