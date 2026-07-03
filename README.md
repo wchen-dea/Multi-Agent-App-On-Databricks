@@ -119,8 +119,10 @@ For architecture diagrams, see [docs/architecture/system-architecture.md](docs/a
 ## Project Layout
 
 - [backend/](backend): orchestrator runtime, handlers, request normalization, server startup
+- [backend/README.md](backend/README.md): backend-focused setup, runtime behavior, and operations guide
 - [frontend/ui_app.py](frontend/ui_app.py): Chainlit bootstrap entrypoint
 - [frontend/app/](frontend/app): modular frontend package (handlers, config, session, streaming, UI)
+- [frontend/README.md](frontend/README.md): frontend-focused setup, token forwarding, and troubleshooting guide
 - [scripts/](scripts): quickstart, preflight, local start, discovery, and permission helpers
 - [resources/multiagent_app.yml](resources/multiagent_app.yml): shared Databricks app resource definition
 - [targets/](targets): target-specific deployment overlays

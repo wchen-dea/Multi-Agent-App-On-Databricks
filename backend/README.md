@@ -1,0 +1,140 @@
+# Backend README
+
+## Overview
+
+The backend hosts the multi-agent runtime using MLflow Agent Server.
+
+Core responsibilities:
+
+- accept invoke/stream requests,
+- build runtime auth context (app and OBO),
+- enforce request-time policy and response guardrails,
+- route across subagent tools and MCP integrations,
+- publish lifecycle events to configurable message bus backends.
+
+Primary entrypoint:
+
+- `backend/api/server.py`
+
+## Structure
+
+- `backend/api/`
+  - `server.py`: AgentServer bootstrap and app startup.
+  - `handlers.py`: `@invoke` and `@stream` request handlers.
+  - `dependencies.py`: dependency wiring for services.
+- `backend/services/`
+  - `orchestrator_service.py`: tool construction and orchestration behavior.
+  - `runtime_auth_service.py`: request-scoped auth context and policy-aware availability.
+  - `policy_service.py`: deterministic request-time policy checks.
+  - `guardrails_service.py`: deterministic response-time guardrail checks.
+  - `message_bus.py`: structured logging, noop, Kafka, RabbitMQ, UC table backends.
+  - `interfaces.py`: service protocols for dependency injection.
+- `backend/domain/`
+  - `subagent_config.py`: typed config model and validation.
+  - `subagents.json`: canonical subagent/tool registry config.
+- `backend/shared/`
+  - `settings.py`: typed runtime settings.
+  - `runtime_utils.py`: auth/request helper utilities.
+  - `request_utils.py`: request normalization helpers.
+  - `logging_config.py`: backend logging configuration.
+- `backend/evaluate_agent.py`: release-gate evaluation runner.
+
+## Local Run
+
+Start backend only:
+
+```bash
+uv run start-server --reload
+```
+
+Backend health and root probes:
+
+- `GET /health`
+- `GET /`
+
+Invoke endpoint:
+
+- `POST /invocations`
+
+## For New Developers
+
+Use this workflow when iterating on orchestration logic:
+
+1. Start backend: `uv run start-server --reload`
+2. Modify handlers/services under `backend/api/` and `backend/services/`
+3. Run targeted tests: `uv run pytest -q`
+
+Most common edit locations:
+
+- `backend/api/handlers.py`: invoke/stream flow and guardrail enforcement.
+- `backend/services/runtime_auth_service.py`: auth context and tool availability.
+- `backend/services/policy_service.py`: deterministic policy checks.
+- `backend/services/orchestrator_service.py`: tool and MCP orchestration behavior.
+
+Tip:
+
+- Keep `backend/domain/subagents.json` and runtime behavior aligned when adding/changing tools.
+
+## Key Environment Variables
+
+General:
+
+- `ORCHESTRATOR_MODEL`: orchestrator model name.
+- `BACKEND_LOG_LEVEL`, `BACKEND_LOG_FORMAT`, `BACKEND_LOG_DATE_FORMAT`.
+
+Message bus:
+
+- `MESSAGE_BUS_BACKEND`: `structured_logging` (default), `noop`, `kafka`, `rabbitmq`, `uc_table`.
+- `MESSAGE_BUS_TOPIC`
+- `MESSAGE_BUS_FAIL_OPEN`
+- `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_CLIENT_ID`
+- `RABBITMQ_URL`
+- `UC_AUDIT_WAREHOUSE_ID`, `UC_AUDIT_CATALOG`, `UC_AUDIT_SCHEMA`, `UC_AUDIT_TABLE`
+
+Evaluation gate:
+
+- `EVAL_MIN_TOOL_CALL_ACCURACY`
+- `EVAL_MIN_AUTH_CORRECTNESS`
+- `EVAL_MIN_SAFETY`
+- `EVAL_MIN_GROUNDEDNESS`
+- `EVAL_REQUIRE_ALL_KPIS`
+
+## Evaluation and Tests
+
+Run tests:
+
+```bash
+uv run pytest -q
+```
+
+Run evaluation gate:
+
+```bash
+uv run agent-evaluate
+```
+
+## For Operators
+
+Use this checklist before and after deployment:
+
+1. Validate config and tests: `uv run pytest -q`
+2. Run quality gate: `uv run agent-evaluate`
+3. Confirm backend health endpoint and invocation path
+4. Review message-bus and guardrail/policy events in logs or UC sink
+
+Operational focus areas:
+
+- OBO failures: confirm forwarded token presence and permissions.
+- Policy/guardrail blocks: inspect deny and block reason codes.
+- Message-bus transport: verify selected backend connectivity and fail-open behavior.
+
+## Troubleshooting
+
+- OBO route unavailable:
+  - verify `x-forwarded-access-token` is forwarded from frontend.
+  - verify user identity has required data permissions.
+- Policy or guardrail blocks:
+  - inspect backend logs for deny reasons and guardrail reason codes.
+- Message bus backend initialization failure:
+  - with `MESSAGE_BUS_FAIL_OPEN=true`, runtime should fall back to structured logging.
+  - otherwise fix backend credentials/connectivity for selected transport.
