@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 BACKEND_URL = os.environ.get("API_PROXY", "http://localhost:8000/invocations")
 CHAT_GREETING = os.environ.get("CHAT_GREETING", "What would you like to know?")
 TIMEOUT = int(os.environ.get("CHAT_PROXY_TIMEOUT_SECONDS", "300"))
+FORWARDED_ACCESS_TOKEN_HEADER = "x-forwarded-access-token"
+SET_TOKEN_COMMAND = "/token"
+CLEAR_TOKEN_COMMAND = "/clear-token"
 
 
 def _build_payload(history: list[dict], user_message: str) -> dict:
@@ -44,6 +47,38 @@ def _build_payload(history: list[dict], user_message: str) -> dict:
         "stream": True,
         "context": {"conversation_id": cl.context.session.id},
     }
+
+
+def _build_headers() -> dict[str, str]:
+    """Build request headers for backend calls.
+
+    Returns:
+        Header dictionary including forwarded user token when set.
+    """
+    headers: dict[str, str] = {}
+    token = cl.user_session.get("forwarded_access_token")
+    if isinstance(token, str) and token.strip():
+        headers[FORWARDED_ACCESS_TOKEN_HEADER] = token.strip()
+    return headers
+
+
+def _parse_token_command(text: str) -> tuple[str | None, str | None]:
+    """Parse token management commands from user input.
+
+    Args:
+        text: Raw user message content.
+
+    Returns:
+        Tuple of (command, token).
+        command is one of: "set", "clear", or None.
+    """
+    stripped = text.strip()
+    if stripped == CLEAR_TOKEN_COMMAND:
+        return ("clear", None)
+    if not stripped.startswith(f"{SET_TOKEN_COMMAND} "):
+        return (None, None)
+    token = stripped[len(SET_TOKEN_COMMAND) :].strip()
+    return ("set", token)
 
 
 def _extract_delta(event: dict) -> str:
@@ -75,7 +110,15 @@ async def _set_error(message: cl.Message, content: str) -> None:
 async def on_chat_start():
     """Initialize chat state and send the greeting message."""
     cl.user_session.set("history", [])
-    await cl.Message(content=CHAT_GREETING).send()
+    cl.user_session.set("forwarded_access_token", None)
+    await cl.Message(
+        content=(
+            f"{CHAT_GREETING}\n\n"
+            "Optional OBO token commands:\n"
+            "- /token <databricks_access_token>\n"
+            "- /clear-token"
+        )
+    ).send()
 
 
 @cl.on_message
@@ -85,8 +128,29 @@ async def on_message(message: cl.Message):
     Args:
         message: Incoming user message event from Chainlit.
     """
+    command, token = _parse_token_command(message.content)
+    if command == "clear":
+        cl.user_session.set("forwarded_access_token", None)
+        await cl.Message(content="Cleared forwarded user token for this chat session.").send()
+        return
+    if command == "set":
+        if not token:
+            await cl.Message(
+                content="Token command format: /token <databricks_access_token>"
+            ).send()
+            return
+        cl.user_session.set("forwarded_access_token", token)
+        await cl.Message(
+            content=(
+                "Forwarded user token saved for this chat session. "
+                "Subsequent requests will include x-forwarded-access-token."
+            )
+        ).send()
+        return
+
     history: list[dict] = cl.user_session.get("history", [])
     payload = _build_payload(history, message.content)
+    headers = _build_headers()
 
     response_msg = cl.Message(content="")
     await response_msg.send()
@@ -94,7 +158,12 @@ async def on_message(message: cl.Message):
 
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            async with client.stream("POST", BACKEND_URL, json=payload) as resp:
+            async with client.stream(
+                "POST",
+                BACKEND_URL,
+                json=payload,
+                headers=headers,
+            ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):

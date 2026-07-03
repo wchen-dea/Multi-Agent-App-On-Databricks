@@ -5,6 +5,8 @@ from typing import Any, Iterable, Literal
 
 SubagentKind = Literal["genie", "serving_endpoint", "app"]
 ALLOWED_SUBAGENT_KINDS = {"genie", "serving_endpoint", "app"}
+SubagentAuthMode = Literal["app", "obo"]
+ALLOWED_SUBAGENT_AUTH_MODES = {"app", "obo"}
 
 
 @dataclass(frozen=True)
@@ -15,6 +17,7 @@ class SubagentConfig:
     description: str
     endpoint: str | None = None
     space_id: str | None = None
+    auth_mode: SubagentAuthMode = "app"
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -23,6 +26,11 @@ class SubagentConfig:
             raise ValueError(
                 f"Subagent {self.name!r} has unsupported type {self.kind!r}. "
                 f"Allowed: {sorted(ALLOWED_SUBAGENT_KINDS)}"
+            )
+        if self.auth_mode not in ALLOWED_SUBAGENT_AUTH_MODES:
+            raise ValueError(
+                f"Subagent {self.name!r} has unsupported auth_mode {self.auth_mode!r}. "
+                f"Allowed: {sorted(ALLOWED_SUBAGENT_AUTH_MODES)}"
             )
         if not self.description:
             raise ValueError(f"Subagent {self.name!r} must include a description")
@@ -38,6 +46,10 @@ class SubagentConfig:
         return self.kind == "genie"
 
     @property
+    def is_obo(self) -> bool:
+        return self.auth_mode == "obo"
+
+    @property
     def tool_name(self) -> str:
         return f"query_{self.name}"
 
@@ -49,13 +61,16 @@ class SubagentConfig:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "SubagentConfig":
+        kind = value["type"]
+        auth_mode = value.get("auth_mode", "obo" if kind == "genie" else "app")
         try:
             return cls(
                 name=value["name"],
-                kind=value["type"],
+                kind=kind,
                 description=value["description"],
                 endpoint=value.get("endpoint"),
                 space_id=value.get("space_id"),
+                auth_mode=auth_mode,
             )
         except KeyError as exc:
             raise ValueError(f"Subagent config missing required key: {exc}") from exc
@@ -70,6 +85,7 @@ RAW_SUBAGENTS: list[dict[str, Any]] = [
     {
         "name": "sales_agent",
         "type": "genie",
+        "auth_mode": "obo",
         "space_id": "01f159f5d91419549020e3609add391c",
         "description": (
             "Sales agent backed by a Genie space for structured data analysis. "
@@ -79,6 +95,7 @@ RAW_SUBAGENTS: list[dict[str, Any]] = [
     {
         "name": "knowledge_assistant",
         "type": "serving_endpoint",
+        "auth_mode": "app",
         "endpoint": "knowledge_assistant",
         "description": (
             "Query the knowledge-assistant endpoint on Model Serving. "
@@ -89,6 +106,7 @@ RAW_SUBAGENTS: list[dict[str, Any]] = [
     {
         "name": "lakebase_vector",
         "type": "serving_endpoint",
+        "auth_mode": "app",
         "endpoint": "lakebase_vector_storage",
         "description": (
             "Query the Lakebase-backed vector storage endpoint on Model Serving. "

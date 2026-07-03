@@ -1,5 +1,6 @@
 """Shared backend utilities for session handling, workspace access, and streaming."""
 
+from dataclasses import dataclass
 import logging
 from typing import AsyncGenerator, AsyncIterator, Optional
 from uuid import uuid4
@@ -8,6 +9,21 @@ from agents.result import StreamEvent
 from databricks.sdk import WorkspaceClient
 from mlflow.genai.agent_server import get_request_headers
 from mlflow.types.responses import ResponsesAgentRequest, ResponsesAgentStreamEvent
+
+FORWARDED_ACCESS_TOKEN_HEADER = "x-forwarded-access-token"
+
+
+@dataclass(frozen=True)
+class RequestIdentityContext:
+    """Per-request identity context for hybrid app and OBO authorization."""
+
+    app_workspace_client: WorkspaceClient
+    user_workspace_client: WorkspaceClient | None
+    forwarded_access_token: str | None
+
+    @property
+    def has_user_identity(self) -> bool:
+        return bool(self.user_workspace_client and self.forwarded_access_token)
 
 
 def get_session_id(request: ResponsesAgentRequest) -> str | None:
@@ -65,8 +81,36 @@ def get_user_workspace_client() -> WorkspaceClient:
     Returns:
         Workspace client configured for on-behalf-of-user access.
     """
-    token = get_request_headers().get("x-forwarded-access-token")
+    token = get_forwarded_access_token()
+    if not token:
+        raise ValueError(
+            f"Missing required forwarded access token header: {FORWARDED_ACCESS_TOKEN_HEADER}"
+        )
     return WorkspaceClient(token=token, auth_type="pat")
+
+
+def get_forwarded_access_token() -> str | None:
+    """Get the forwarded user token from inbound request headers."""
+    headers = get_request_headers() or {}
+    token = headers.get(FORWARDED_ACCESS_TOKEN_HEADER)
+    if not token:
+        return None
+    stripped = token.strip()
+    return stripped or None
+
+
+def build_request_identity_context() -> RequestIdentityContext:
+    """Build per-request app and user identity clients for hybrid authorization."""
+    app_workspace_client = WorkspaceClient()
+    token = get_forwarded_access_token()
+    user_workspace_client = (
+        WorkspaceClient(token=token, auth_type="pat") if token else None
+    )
+    return RequestIdentityContext(
+        app_workspace_client=app_workspace_client,
+        user_workspace_client=user_workspace_client,
+        forwarded_access_token=token,
+    )
 
 
 async def process_agent_stream_events(

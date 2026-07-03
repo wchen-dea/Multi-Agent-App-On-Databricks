@@ -9,7 +9,7 @@ Use it as the execution reference for target-based releases.
 
 This document covers deployment and operations only. High-level system context is in `docs/architecture.md`, and implementation details are in `docs/design.md`.
 
-## Current Status (2026-07-01)
+## Current Status
 
 - Dev app is running and user-accessible.
 - Hosted startup uses UI mode with backend internal port remapping.
@@ -97,6 +97,7 @@ databricks bundle deploy -t TARGET --profile PROFILE
 - Non-streaming request succeeds.
 - Streaming request succeeds.
 - Tool routing behaves as expected.
+- Hybrid auth routing behaves as expected (`app` and `obo` paths).
 - No startup crash loop.
 - Logs do not contain authentication or missing-resource errors.
 
@@ -106,6 +107,12 @@ Minimum verification commands:
 databricks apps get APP_NAME --output json --profile PROFILE
 databricks apps logs APP_NAME --follow --profile PROFILE
 ```
+
+Hybrid auth verification checklist:
+
+- Execute an `app` auth tool path and confirm success without forwarding user token.
+- Execute an `obo` auth tool path with forwarded token and confirm success.
+- Execute the same `obo` path without forwarded token and confirm clear authorization failure.
 
 ### Local Operations
 
@@ -129,6 +136,17 @@ uv run preflight
 uv run agent-evaluate
 ```
 
+#### OBO token simulation in Chainlit UI
+
+Use Chainlit session commands:
+
+```text
+/token <databricks_access_token>
+/clear-token
+```
+
+The UI forwards the token as `x-forwarded-access-token` on `/invocations` requests.
+
 ### Incident Triage
 
 1. Identify impacted environment.
@@ -145,6 +163,8 @@ Escalate immediately if issue affects multiple targets or production user traffi
 - Terraform registry unreachable.
 - Deploy completed but runtime not restarted.
 - Missing Unity Catalog grants for Genie query paths.
+- OBO flow missing forwarded token (`x-forwarded-access-token`) for tools configured with `auth_mode: obo`.
+- User identity has insufficient data permissions even when app identity has access.
 - Invalid local credentials in `.env` (for example stale `DATABRICKS_TOKEN`).
 
 ### Rollback

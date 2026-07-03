@@ -1,11 +1,13 @@
 """Normalize request payloads and extract MCP-aware errors."""
 
-from typing import Any
+from typing import Any, Iterable
 
 from agents.exceptions import UserError
+from agents.items import TResponseInputItem
+from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 
 
-def to_messages(input_items) -> list[dict[str, Any]]:
+def to_messages(input_items: Iterable[Any]) -> list[TResponseInputItem]:
     """Normalize MLflow response items to plain role/content dictionaries.
 
     Args:
@@ -14,7 +16,7 @@ def to_messages(input_items) -> list[dict[str, Any]]:
     Returns:
         List of plain role/content dictionaries.
     """
-    messages = []
+    messages: list[TResponseInputItem] = []
     for item in input_items:
         data = item.model_dump() if hasattr(item, "model_dump") else item
         if not isinstance(data, dict):
@@ -32,7 +34,9 @@ def to_messages(input_items) -> list[dict[str, Any]]:
             ]
             content = " ".join(filter(None, texts))
 
-        messages.append({"role": role, "content": content})
+        messages.append(
+            EasyInputMessageParam(role=str(role), content=str(content))
+        )
 
     return messages
 

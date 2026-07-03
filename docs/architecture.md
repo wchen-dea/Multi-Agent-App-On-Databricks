@@ -8,7 +8,7 @@ Describe the high-level system shape, major boundaries, and end-to-end request f
 
 This document covers high-level architecture only. Implementation-level details are in `docs/design.md`, and operational procedures are in `docs/runbook.md`.
 
-## Current Status (2026-07-01)
+## Current Status
 
 - Dev deployment is live with Chainlit enabled.
 - Hosted runtime uses `uv run start-app`.
@@ -24,6 +24,12 @@ It routes user requests to one or more backend capabilities:
 - Genie space tools (via MCP)
 - Serving endpoint agents
 - Optional app-based specialists
+
+Authorization boundary:
+
+- App identity is used for app-auth tools.
+- User identity (OBO) is used for user-auth tools when a forwarded token is present.
+- OBO token propagation uses `x-forwarded-access-token` from UI to backend.
 
 Runtime stack:
 
@@ -119,6 +125,7 @@ flowchart LR
 flowchart TD
     U[User]
     U --> UI[Chainlit UI]
+    UI -.optional x-forwarded-access-token.-> APP
     UI --> APP[Databricks App Endpoint]
     APP --> S[MLflow Agent Server ResponsesAgent]
     S --> H[invoke_handler / stream_handler]
@@ -137,6 +144,15 @@ flowchart TD
     R --> UI
     UI --> U
 ```
+
+### Authorization Routing
+
+The orchestrator uses subagent-level auth configuration (`auth_mode`) to decide execution identity:
+
+- `app`: run tool/MCP calls with app identity.
+- `obo`: run tool/MCP calls with user identity derived from forwarded token.
+
+If an `obo` tool is required but no forwarded token is available, the tool is marked unavailable or returns a clear authorization error.
 
 ### Environment Topology
 

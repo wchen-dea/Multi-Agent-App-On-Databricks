@@ -24,6 +24,7 @@ This project is built around current AI app architecture trends and Databricks l
 - OpenAI-compatible agent loop: OpenAI Agents SDK + Databricks OpenAI Responses API.
 - MCP integration for enterprise context: Genie tool access through MCP.
 - Governed data access: Unity Catalog permissions and SQL warehouse controls.
+- Hybrid authorization model: per-tool app identity and user identity (OBO) routing.
 - Deployment-as-code: Databricks Declarative Automation Bundles with target overlays.
 - Streaming-first UX: Chainlit frontend with incremental token streaming.
 
@@ -35,8 +36,37 @@ From a user and platform viewpoint, the app provides:
 - Dynamic routing: Requests are routed to Genie, serving endpoints, or app-based specialists.
 - Real-time responses: Streaming responses for conversational latency.
 - Configurable specialist set: Subagents can be added and validated through typed configuration.
+- Auth-aware tool routing: each subagent declares `auth_mode` (`app` or `obo`).
 - Environment isolation: dev, qa, stg, and prod with explicit target-specific settings.
 - Operational fallback path: Direct apps deploy path when Terraform registry availability is degraded.
+
+## Authorization Model
+
+The runtime supports a hybrid authorization model:
+
+- App Authorization: tools execute with the app service principal identity.
+- User Authorization (OBO): tools execute with the forwarded user access token.
+
+Subagent authorization is configured in `backend/subagent_config.py` using `auth_mode`:
+
+- `auth_mode: app`
+- `auth_mode: obo`
+
+Current defaults:
+
+- Genie subagents default to `obo` when not explicitly set.
+- Non-Genie subagents default to `app` when not explicitly set.
+
+If an OBO tool is selected and no forwarded token is present, the runtime raises a clear user-facing authorization error instead of falling back silently.
+
+## Chainlit Token Commands
+
+The Chainlit UI supports session-scoped token commands for OBO testing:
+
+- `/token <databricks_access_token>`: stores a forwarded token for this chat session.
+- `/clear-token`: clears the forwarded token from this chat session.
+
+When set, the UI forwards the token to backend `/invocations` as the `x-forwarded-access-token` header.
 
 ## Core Architecture
 

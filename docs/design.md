@@ -8,7 +8,7 @@ Define implementation details, code structure, runtime behavior, and configurati
 
 This document covers low-level design and implementation details. High-level architecture is in `docs/architecture.md`, and operations guidance is in `docs/runbook.md`.
 
-## Current Status (2026-07-01)
+## Current Status
 
 - Runtime is split into focused backend modules (`agent`, `orchestrator`, `subagent_config`, `request_utils`, `utils`).
 - Subagent configuration is typed and validated through dataclass-based models.
@@ -28,17 +28,20 @@ This document covers low-level design and implementation details. High-level arc
 - `backend/agent.py`
   - Defines `invoke_handler` and `stream_handler`
   - Builds orchestrator agent at request time
+  - Builds request-scoped hybrid auth context (app + optional OBO user identity)
   - Connects healthy MCP servers per request
   - Converts request payloads into normalized messages
+  - Emits auth trace metadata for routing and tool execution
 
 - `backend/orchestrator.py`
   - Creates callable tools for configured subagents
-  - Builds Genie MCP server list
+  - Selects app vs OBO client per subagent tool call
+  - Builds Genie MCP server list with auth-aware workspace client selection
   - Assembles orchestrator instructions dynamically
 
 - `backend/subagent_config.py`
   - Typed `SubagentConfig` dataclass
-  - Validation for subagent type-specific required fields
+  - Validation for subagent type-specific required fields and `auth_mode`
   - Source of canonical `SUBAGENTS` configuration
 
 - `backend/request_utils.py`
@@ -47,6 +50,8 @@ This document covers low-level design and implementation details. High-level arc
 
 - `backend/utils.py`
   - Session ID extraction
+  - Forwarded token extraction (`x-forwarded-access-token`)
+  - Request identity context construction for hybrid auth
   - Workspace host and MCP URL construction
   - Stream event normalization for stable item IDs
 
@@ -55,6 +60,7 @@ This document covers low-level design and implementation details. High-level arc
 - `frontend/chainlit_app.py`
   - Handles chat start and message events
   - Proxies requests to backend `/invocations`
+  - Supports `/token` and `/clear-token` commands for session-scoped OBO token management
   - Streams SSE token deltas (`response.output_text.delta`)
   - Maintains session-scoped chat history in Chainlit user session
 
@@ -70,6 +76,7 @@ This document covers low-level design and implementation details. High-level arc
 
 - Orchestrator pattern: a central orchestrator routes user intent to specialist tools and subagents.
 - Strategy pattern: routing behavior varies by subagent type (`genie`, `serving_endpoint`, `app`) behind a unified interface.
+- Policy/strategy blend: runtime auth selection varies by subagent `auth_mode` (`app`, `obo`) under a unified tool interface.
 - Configuration object pattern: typed subagent configuration with centralized validation reduces runtime misconfiguration.
 - Factory/builder pattern: tool and server construction is encapsulated in dedicated builder functions.
 - Adapter pattern: request and error normalization provides a stable internal payload shape.
@@ -93,9 +100,21 @@ Supported subagent types:
 - `serving_endpoint` via Databricks Responses API (`endpoint` required)
 - `app` via Databricks Responses API using `apps/<endpoint>` model mapping
 
+Supported auth modes:
+
+- `app`: use app identity for tool calls.
+- `obo`: use user identity from forwarded request token.
+
+Default auth mode behavior:
+
+- `genie` defaults to `obo` if not explicitly configured.
+- non-Genie defaults to `app` if not explicitly configured.
+
 For non-Genie tools, function tool names are generated as:
 
 - `query_<subagent_name>`
+
+If an OBO tool is invoked without a forwarded token, the runtime returns a clear authorization error and does not silently fall back to app auth.
 
 ## Configuration Model
 
@@ -124,6 +143,10 @@ Used by local and hosted startup:
 - `DATABRICKS_APP_NAME`
 - `DATABRICKS_APP_PORT`
 - `PORT`
+
+Request header used at runtime for OBO:
+
+- `x-forwarded-access-token`
 
 ## Operational Constraints in Design
 
