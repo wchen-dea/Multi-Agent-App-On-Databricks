@@ -208,5 +208,7 @@ Supported message bus backends:
 
 ## Related Docs
 
+- `docs/business-specs.md`: business goals and requirements
+- `docs/technical-spaces.md`: centralized technical domain map
 - `docs/design.md`: low-level implementation details
 - `docs/runbook.md`: operations and incident handling
