@@ -1,0 +1,95 @@
+from backend.services.message_bus import (
+    KafkaMessageBus,
+    NoOpMessageBus,
+    RabbitMQMessageBus,
+    StructuredLoggingMessageBus,
+    default_message_bus,
+)
+from backend.shared.settings import AppSettings
+
+
+def _settings(**kwargs) -> AppSettings:
+    values = AppSettings().__dict__.copy()
+    values.update(kwargs)
+    return AppSettings(**values)
+
+
+def test_default_message_bus_structured_logging_backend():
+    bus = default_message_bus(_settings(message_bus_backend="structured_logging"))
+    assert isinstance(bus, StructuredLoggingMessageBus)
+
+
+def test_default_message_bus_noop_backend():
+    bus = default_message_bus(_settings(message_bus_backend="noop"))
+    assert isinstance(bus, NoOpMessageBus)
+
+
+def test_default_message_bus_unknown_backend_falls_back_to_structured_logging():
+    bus = default_message_bus(_settings(message_bus_backend="unknown"))
+    assert isinstance(bus, StructuredLoggingMessageBus)
+
+
+def test_default_message_bus_kafka_backend_fail_open_falls_back_without_kafka_dependency():
+    bus = default_message_bus(
+        _settings(
+            message_bus_backend="kafka",
+            message_bus_kafka_bootstrap_servers="localhost:9092",
+            message_bus_fail_open=True,
+        )
+    )
+    assert isinstance(bus, StructuredLoggingMessageBus)
+
+
+def test_default_message_bus_kafka_backend_fail_closed_raises_without_dependency():
+    settings = _settings(
+        message_bus_backend="kafka",
+        message_bus_kafka_bootstrap_servers="localhost:9092",
+        message_bus_fail_open=False,
+    )
+    try:
+        default_message_bus(settings)
+    except RuntimeError:
+        return
+    except Exception as exc:  # pragma: no cover
+        raise AssertionError(f"Expected RuntimeError, got {type(exc).__name__}") from exc
+    raise AssertionError("Expected RuntimeError for fail-closed Kafka backend")
+
+
+def test_kafka_message_bus_requires_bootstrap_servers():
+    try:
+        KafkaMessageBus(bootstrap_servers="", topic="events", client_id="app")
+    except ValueError:
+        return
+    raise AssertionError("Expected ValueError when bootstrap servers are missing")
+
+
+def test_default_message_bus_rabbitmq_backend_fail_open_falls_back_without_rabbitmq():
+    bus = default_message_bus(
+        _settings(
+            message_bus_backend="rabbitmq",
+            message_bus_rabbitmq_url="amqp://guest:guest@localhost:5672/",
+            message_bus_fail_open=True,
+        )
+    )
+    assert isinstance(bus, StructuredLoggingMessageBus)
+
+
+def test_default_message_bus_rabbitmq_backend_fail_closed_raises_on_init_error():
+    settings = _settings(
+        message_bus_backend="rabbitmq",
+        message_bus_rabbitmq_url="amqp://guest:guest@localhost:5672/",
+        message_bus_fail_open=False,
+    )
+    try:
+        default_message_bus(settings)
+    except Exception:
+        return
+    raise AssertionError("Expected initialization error for fail-closed RabbitMQ backend")
+
+
+def test_rabbitmq_message_bus_requires_url():
+    try:
+        RabbitMQMessageBus(url="", exchange="events")
+    except ValueError:
+        return
+    raise AssertionError("Expected ValueError when RabbitMQ URL is missing")

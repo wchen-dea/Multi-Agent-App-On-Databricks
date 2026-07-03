@@ -12,7 +12,13 @@ from databricks_openai import AsyncDatabricksOpenAI
 from databricks_openai.agents import McpServer
 
 from backend.domain.subagent_config import SubagentConfig
-from backend.services.interfaces import FunctionToolWrapper, McpServerFactory, TraceMetadataUpdater
+from backend.services.interfaces import (
+    FunctionToolWrapper,
+    McpServerFactory,
+    MessageBus,
+    TraceMetadataUpdater,
+)
+from backend.services.message_bus import NoOpMessageBus
 from backend.shared.runtime_utils import RequestIdentityContext, build_mcp_url
 
 logger = logging.getLogger(__name__)
@@ -25,6 +31,7 @@ class OrchestratorDependencies:
     trace_metadata_updater: TraceMetadataUpdater = mlflow.update_current_trace
     function_tool_wrapper: FunctionToolWrapper = function_tool
     mcp_server_factory: McpServerFactory = McpServer
+    message_bus: MessageBus = NoOpMessageBus()
 
 
 def _trace_tool_auth(
@@ -72,17 +79,45 @@ def build_subagent_tools(
             continue
 
         async def _call(question: str, _subagent: SubagentConfig = subagent) -> str:
+            dependencies.message_bus.publish(
+                "tool.call.started",
+                {
+                    "tool_name": _subagent.tool_name,
+                    "subagent": _subagent.name,
+                    "auth_mode": _subagent.auth_mode,
+                },
+            )
             selected_client = _select_tool_client(_subagent, app_client, obo_client)
             _trace_tool_auth(
                 _subagent,
                 has_user_identity=obo_client is not None,
                 deps=dependencies,
             )
-            response = await selected_client.responses.create(
-                model=_subagent.model_name,
-                input=[{"role": "user", "content": question}],
-            )
-            return response.output_text
+            try:
+                response = await selected_client.responses.create(
+                    model=_subagent.model_name,
+                    input=[{"role": "user", "content": question}],
+                )
+                dependencies.message_bus.publish(
+                    "tool.call.succeeded",
+                    {
+                        "tool_name": _subagent.tool_name,
+                        "subagent": _subagent.name,
+                        "auth_mode": _subagent.auth_mode,
+                    },
+                )
+                return response.output_text
+            except Exception as exc:
+                dependencies.message_bus.publish(
+                    "tool.call.failed",
+                    {
+                        "tool_name": _subagent.tool_name,
+                        "subagent": _subagent.name,
+                        "auth_mode": _subagent.auth_mode,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                raise
 
         _call.__name__ = subagent.tool_name
         _call.__doc__ = subagent.description
@@ -109,6 +144,14 @@ def build_mcp_servers(
                 unavailable.append(
                     f"Genie MCP tools ({subagent.name}) requires user authorization (OBO)"
                 )
+                dependencies.message_bus.publish(
+                    "mcp.server.unavailable",
+                    {
+                        "subagent": subagent.name,
+                        "auth_mode": subagent.auth_mode,
+                        "reason": "missing_obo_identity",
+                    },
+                )
                 continue
             workspace_client = identity_ctx.user_workspace_client
         else:
@@ -123,6 +166,14 @@ def build_mcp_servers(
                 name=f"Genie:{subagent.name}",
                 workspace_client=workspace_client,
             )
+        )
+        dependencies.message_bus.publish(
+            "mcp.server.registered",
+            {
+                "subagent": subagent.name,
+                "auth_mode": subagent.auth_mode,
+                "space_id": subagent.space_id,
+            },
         )
 
     return servers, unavailable

@@ -15,11 +15,14 @@ from backend.services.orchestrator_service import (
     connect_healthy_mcp_servers,
     create_orchestrator_agent,
 )
+from backend.services.interfaces import MessageBus
+from backend.services.message_bus import default_message_bus
 from backend.services.runtime_auth_service import (
     RuntimeAuthContext,
     RuntimeAuthDependencies,
     build_runtime_auth_context,
 )
+from backend.shared.settings import get_settings
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,7 @@ class HandlerDependencies:
     ]
     mcp_connector: Callable[[AsyncExitStack, list], Awaitable[tuple[list, list[str]]]]
     orchestrator_factory: Callable[[str, list[SubagentConfig], list, list, list[str] | None], Any]
+    message_bus: MessageBus
 
 
 @dataclass(frozen=True)
@@ -49,7 +53,8 @@ def build_dependency_container() -> AppDependencyContainer:
     Centralizes service wiring and is the single place to override dependencies
     for custom environments or advanced integration testing.
     """
-    orchestrator_deps = OrchestratorDependencies()
+    bus = default_message_bus(get_settings())
+    orchestrator_deps = OrchestratorDependencies(message_bus=bus)
 
     runtime_auth_deps = RuntimeAuthDependencies(
         subagent_tools_builder=lambda subagents, app_client, obo_client: build_subagent_tools(
@@ -63,6 +68,7 @@ def build_dependency_container() -> AppDependencyContainer:
             identity_ctx,
             deps=orchestrator_deps,
         ),
+        message_bus=bus,
     )
 
     handler_deps = HandlerDependencies(
@@ -74,6 +80,7 @@ def build_dependency_container() -> AppDependencyContainer:
         ),
         mcp_connector=connect_healthy_mcp_servers,
         orchestrator_factory=create_orchestrator_agent,
+        message_bus=bus,
     )
 
     return AppDependencyContainer(

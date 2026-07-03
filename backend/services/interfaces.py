@@ -65,3 +65,9 @@ class McpServerFactory(Protocol):
     """Builds an MCP server instance from connection details."""
 
     def __call__(self, *, url: str, name: str, workspace_client: Any) -> McpServer: ...
+
+
+class MessageBus(Protocol):
+    """Publishes typed lifecycle events for agent request execution."""
+
+    def publish(self, event_type: str, payload: dict[str, object]) -> None: ...

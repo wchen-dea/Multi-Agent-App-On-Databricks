@@ -261,8 +261,8 @@ class ProcessManager:
             self.port = backend_port
 
         if not self.no_ui:
-            if not Path("frontend/chainlit_app.py").exists():
-                print("ERROR: frontend/chainlit_app.py not found. Ensure it is present in the repo root.")
+            if not Path("frontend/ui_app.py").exists():
+                print("ERROR: frontend/ui_app.py not found. Ensure it is present in the repo root.")
                 self.no_ui = True
             else:
                 # Configure Chainlit to proxy requests to the backend invocations endpoint.
@@ -292,7 +292,7 @@ class ProcessManager:
                     self.frontend_port = _env_int("CHAT_APP_PORT", "PORT", 3000)
                 self.frontend_process = self.start_process(
                     [
-                        "uv", "run", "chainlit", "run", "frontend/chainlit_app.py",
+                        "uv", "run", "chainlit", "run", "frontend/ui_app.py",
                         "--host", "0.0.0.0",
                         "--port", str(self.frontend_port),
                     ],

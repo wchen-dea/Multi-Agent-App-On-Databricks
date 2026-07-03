@@ -53,6 +53,11 @@ This document covers low-level design and implementation details. High-level arc
   - Defines protocol-based service interfaces for dependency injection
   - Standardizes contracts for auth-context and tool/server builder dependencies
 
+- `backend/services/message_bus.py`
+  - Provides message bus implementations for lifecycle event publishing
+  - Ships with no-op, structured-logging, Kafka, and RabbitMQ bus implementations
+  - Serves as extension point for external queue/broker integrations
+
 - `backend/domain/subagent_config.py`
   - Typed `SubagentConfig` dataclass
   - Validation for subagent type-specific required fields and `auth_mode`
@@ -80,12 +85,33 @@ This document covers low-level design and implementation details. High-level arc
 
 #### Frontend Runtime
 
-- `frontend/chainlit_app.py`
+- `frontend/ui_app.py`
+  - Thin Chainlit bootstrap that imports and registers UI handlers
+
+- `frontend/app/handlers.py`
   - Handles chat start and message events
   - Proxies requests to backend `/invocations`
+  - Orchestrates command handling, streaming, and response rendering
+
+- `frontend/app/config.py`
+  - Loads typed frontend runtime settings from environment
+
+- `frontend/app/session.py`
+  - Centralizes session state for history and forwarded token
+
+- `frontend/app/commands.py`
+  - Parses slash commands and token masking helpers
+
+- `frontend/app/stream_events.py`
+  - Extracts text deltas and response provenance hints from stream events
+
+- `frontend/app/ui_content.py`
+  - Builds branded welcome panel, starter prompts, and source badges
+
+- `frontend/ui_app.py`
   - Supports `/token` and `/clear-token` commands for session-scoped OBO token management
-  - Streams SSE token deltas (`response.output_text.delta`)
-  - Maintains session-scoped chat history in Chainlit user session
+  - Streams SSE token deltas (`response.output_text.delta`) via handler layer
+  - Maintains session-scoped chat history through session utilities
 
 #### Local Process Orchestration
 
@@ -103,6 +129,7 @@ This document covers low-level design and implementation details. High-level arc
 - Configuration object pattern: typed subagent configuration with centralized validation reduces runtime misconfiguration.
 - Factory/builder pattern: tool and server construction is encapsulated in dedicated builder functions.
 - Dependency injection pattern: handlers/services support typed dependency containers for testability and decoupling.
+- Event bus pattern: lifecycle events are published through an abstract message bus interface.
 - Adapter pattern: request and error normalization provides a stable internal payload shape.
 - Proxy pattern: Chainlit frontend proxies client interactions to backend invocation handlers.
 - Environment overlay pattern: shared bundle config plus per-target overrides (`dev`, `qa`, `stg`, `prod`).
@@ -111,10 +138,11 @@ This document covers low-level design and implementation details. High-level arc
 
 1. UI sends request to the Databricks App endpoint.
 2. MLflow Agent Server receives and dispatches to invoke/stream handler.
-3. Handler opens async context and health-checks MCP servers.
-4. Orchestrator agent is created with available tools.
-5. Runner executes model/tool loop.
-6. Response items/events are normalized and returned to client.
+3. Runtime auth context is built and message-bus auth events are published.
+4. Handler opens async context and health-checks MCP servers.
+5. Orchestrator agent is created with available tools.
+6. Runner executes model/tool loop while tool lifecycle bus events are emitted.
+7. Response items/events are normalized and returned to client.
 
 ## Tool Routing Model
 
@@ -189,7 +217,7 @@ Request header used at runtime for OBO:
 | `backend/services/orchestrator_service.py` | Tool/server construction and orchestrator assembly |
 | `backend/domain/subagent_config.py` | Typed subagent definitions and validation |
 | `backend/api/server.py` | MLflow Agent Server bootstrap |
-| `frontend/chainlit_app.py` | UI and backend proxy streaming |
+| `frontend/ui_app.py` | UI and backend proxy streaming |
 | `scripts/start_app.py` | Local process supervision |
 
 ## Related Docs

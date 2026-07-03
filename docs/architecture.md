@@ -36,6 +36,7 @@ Runtime stack:
 - MLflow Agent Server
 - OpenAI Agents SDK
 - Databricks OpenAI-compatible runtime clients
+- Structured message bus events for request/tool lifecycle observability
 
 ### Major Components
 
@@ -175,6 +176,17 @@ The orchestrator uses subagent-level auth configuration (`auth_mode`) to decide 
 - `obo`: run tool/MCP calls with user identity derived from forwarded token.
 
 If an `obo` tool is required but no forwarded token is available, the tool is marked unavailable or returns a clear authorization error.
+
+### Message Bus Observability
+
+The runtime publishes structured message-bus events at key orchestration points:
+
+- Request lifecycle: invoke/stream started, succeeded, failed
+- Runtime auth lifecycle: identity resolved, trace metadata updated, context built
+- Tool lifecycle: tool call started, succeeded, failed
+- MCP lifecycle: server registered or unavailable
+
+Current default implementation emits these events as structured logs. This supports an easy path to external bus providers later (for example Kafka or cloud pub/sub) without changing core orchestration logic.
 
 ### Environment Topology
 

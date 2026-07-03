@@ -122,6 +122,26 @@ Hybrid auth verification checklist:
 uv run start-app
 ```
 
+#### RabbitMQ message bus local example
+
+Use this when you want lifecycle events to publish through RabbitMQ instead of structured logs.
+
+```bash
+# Message bus backend
+MESSAGE_BUS_BACKEND=rabbitmq
+MESSAGE_BUS_TOPIC=agent-lifecycle-events
+MESSAGE_BUS_FAIL_OPEN=true
+
+# RabbitMQ connection
+RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+```
+
+Then start the app as usual:
+
+```bash
+uv run start-app
+```
+
 #### Backend-only
 
 ```bash

@@ -87,7 +87,8 @@ For detailed architecture and component diagrams, see [docs/architecture.md](doc
 ## Project Layout
 
 - [backend/](backend): orchestrator runtime, handlers, request normalization, server startup
-- [frontend/chainlit_app.py](frontend/chainlit_app.py): chat UI and backend proxy streaming
+- [frontend/ui_app.py](frontend/ui_app.py): Chainlit bootstrap entrypoint
+- [frontend/app/](frontend/app): modular frontend package (handlers, config, session, streaming, UI)
 - [scripts/](scripts): quickstart, preflight, local start, discovery, and permission helpers
 - [resources/multiagent_app.yml](resources/multiagent_app.yml): shared Databricks app resource definition
 - [targets/](targets): target-specific deployment overlays
@@ -124,6 +125,12 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - `BACKEND_LOG_LEVEL`: backend log level (default `INFO`).
 - `BACKEND_LOG_FORMAT`: Python logging format string for backend logs.
 - `BACKEND_LOG_DATE_FORMAT`: datetime format used in backend logs.
+- `MESSAGE_BUS_BACKEND`: `structured_logging` (default), `noop`, `kafka`, or `rabbitmq`.
+- `MESSAGE_BUS_TOPIC`: topic name used by message bus backends (default `agent-lifecycle-events`).
+- `MESSAGE_BUS_FAIL_OPEN`: when `true`, fallback to structured logging if bus init fails.
+- `KAFKA_BOOTSTRAP_SERVERS`: Kafka bootstrap servers (required for `MESSAGE_BUS_BACKEND=kafka`).
+- `KAFKA_CLIENT_ID`: Kafka client id used by producer (default `multiagent-app`).
+- `RABBITMQ_URL`: RabbitMQ AMQP URL (required for `MESSAGE_BUS_BACKEND=rabbitmq`).
 
 ## Documentation
 

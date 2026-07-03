@@ -12,11 +12,13 @@ from backend.domain.subagent_config import SubagentConfig
 from backend.services.interfaces import (
     IdentityContextProvider,
     McpServersBuilder,
+    MessageBus,
     OboClientFactory,
     SessionIdProvider,
     SubagentToolsBuilder,
     TraceMetadataUpdater,
 )
+from backend.services.message_bus import NoOpMessageBus
 from backend.services.orchestrator_service import build_mcp_servers, build_subagent_tools
 from backend.shared.runtime_utils import (
     RequestIdentityContext,
@@ -44,6 +46,7 @@ class RuntimeAuthDependencies:
     obo_client_factory: OboClientFactory = AsyncDatabricksOpenAI
     subagent_tools_builder: SubagentToolsBuilder = build_subagent_tools
     mcp_servers_builder: McpServersBuilder = build_mcp_servers
+    message_bus: MessageBus = NoOpMessageBus()
 
 
 def _build_trace_metadata(
@@ -62,6 +65,7 @@ def _build_trace_metadata(
     if session_id := deps.session_id_provider(request):
         metadata["mlflow.trace.session"] = session_id
     deps.trace_metadata_updater(metadata=metadata)
+    deps.message_bus.publish("auth.trace.metadata.updated", metadata)
     return metadata
 
 
@@ -74,6 +78,13 @@ def build_runtime_auth_context(
     """Build request-scoped clients and tool wiring for hybrid auth execution."""
     dependencies = deps or RuntimeAuthDependencies()
     identity_ctx = dependencies.identity_context_provider()
+    dependencies.message_bus.publish(
+        "auth.identity.resolved",
+        {
+            "has_user_identity": identity_ctx.has_user_identity,
+            "subagents_total": len(subagents),
+        },
+    )
     _build_trace_metadata(subagents, request, identity_ctx, dependencies)
 
     obo_client = (
@@ -84,6 +95,14 @@ def build_runtime_auth_context(
 
     subagent_tools = dependencies.subagent_tools_builder(subagents, app_client, obo_client)
     mcp_servers, unavailable_auth = dependencies.mcp_servers_builder(subagents, identity_ctx)
+    dependencies.message_bus.publish(
+        "auth.context.built",
+        {
+            "subagent_tools": len(subagent_tools),
+            "mcp_servers": len(mcp_servers),
+            "unavailable_auth": len(unavailable_auth),
+        },
+    )
     return RuntimeAuthContext(
         subagent_tools=subagent_tools,
         mcp_servers=mcp_servers,

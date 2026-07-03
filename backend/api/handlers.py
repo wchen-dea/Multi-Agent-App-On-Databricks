@@ -37,6 +37,12 @@ if not SUBAGENTS:
 
 @invoke()
 async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentResponse:
+    HANDLER_DEPS.message_bus.publish(
+        "request.invoke.started",
+        {
+            "subagents_total": len(SUBAGENTS),
+        },
+    )
     runtime_auth = HANDLER_DEPS.runtime_auth_builder(request, SUBAGENTS, _client)
 
     try:
@@ -54,13 +60,33 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
             )
             messages = to_messages(request.input)
             result = await Runner.run(agent, messages)
+            HANDLER_DEPS.message_bus.publish(
+                "request.invoke.succeeded",
+                {
+                    "output_items": len(result.new_items),
+                    "unavailable_tools": len(unavailable),
+                },
+            )
             return ResponsesAgentResponse(
                 output=cast(Any, [item.to_input_item() for item in result.new_items])
             )
     except UserError as e:
+        HANDLER_DEPS.message_bus.publish(
+            "request.invoke.failed",
+            {
+                "error_type": type(e).__name__,
+                "reason": "authorization",
+            },
+        )
         logger.warning("Authorization error during invoke: %s", e)
         raise
     except Exception as e:
+        HANDLER_DEPS.message_bus.publish(
+            "request.invoke.failed",
+            {
+                "error_type": type(e).__name__,
+            },
+        )
         mcp_errors = extract_mcp_errors(e)
         if mcp_errors:
             logger.warning(
@@ -74,6 +100,12 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
 async def stream_handler(
     request: ResponsesAgentRequest,
 ) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
+    HANDLER_DEPS.message_bus.publish(
+        "request.stream.started",
+        {
+            "subagents_total": len(SUBAGENTS),
+        },
+    )
     runtime_auth = HANDLER_DEPS.runtime_auth_builder(request, SUBAGENTS, _client)
 
     try:
@@ -91,12 +123,34 @@ async def stream_handler(
             )
             messages = to_messages(request.input)
             result = Runner.run_streamed(agent, input=messages)
+            event_count = 0
             async for event in process_agent_stream_events(result.stream_events()):
+                event_count += 1
                 yield event
+            HANDLER_DEPS.message_bus.publish(
+                "request.stream.succeeded",
+                {
+                    "events_streamed": event_count,
+                    "unavailable_tools": len(unavailable),
+                },
+            )
     except UserError as e:
+        HANDLER_DEPS.message_bus.publish(
+            "request.stream.failed",
+            {
+                "error_type": type(e).__name__,
+                "reason": "authorization",
+            },
+        )
         logger.warning("Authorization error during stream: %s", e)
         raise
     except Exception as e:
+        HANDLER_DEPS.message_bus.publish(
+            "request.stream.failed",
+            {
+                "error_type": type(e).__name__,
+            },
+        )
         mcp_errors = extract_mcp_errors(e)
         if mcp_errors:
             logger.warning(
