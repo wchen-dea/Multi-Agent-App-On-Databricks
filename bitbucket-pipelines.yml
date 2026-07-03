@@ -73,6 +73,19 @@ definitions:
         fi
         databricks apps deploy "$APP_NAME" --source-code-path "$APP_SRC" --mode SNAPSHOT
       - databricks bundle run multiagent-app --target "$DAB_TARGET"
+      - |
+        APP_JSON="$(databricks apps get "$APP_NAME" --output json)"
+        DEPLOY_STATE="$(echo "$APP_JSON" | jq -r '.active_deployment.status.state')"
+        APP_STATE="$(echo "$APP_JSON" | jq -r '.app_status.state')"
+
+        echo "Deployment state: $DEPLOY_STATE"
+        echo "App state: $APP_STATE"
+
+        if [ "$DEPLOY_STATE" != "SUCCEEDED" ] || [ "$APP_STATE" != "RUNNING" ]; then
+          echo "App health check failed for $APP_NAME" >&2
+          echo "$APP_JSON" | jq -r '.active_deployment.status, .app_status' >&2
+          exit 1
+        fi
 pipelines:
   branches:
     dev:

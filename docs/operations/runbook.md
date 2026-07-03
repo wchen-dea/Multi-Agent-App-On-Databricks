@@ -77,6 +77,11 @@ Final pre-release checks:
 uv run prepare-app-source
 ```
 
+Notes:
+
+- Wheel binaries under `.databricks_app_source/wheels/*.whl` are generated artifacts and are git-ignored.
+- Keep `.databricks_app_source/wheels/.gitkeep` committed so the wheel directory exists in fresh clones and CI.
+
 #### 1) Validate bundle
 
 ```bash
@@ -131,6 +136,19 @@ Expected health fields:
 
 - `active_deployment.status.state = SUCCEEDED`
 - `app_status.state = RUNNING`
+
+### Bitbucket Pipeline Alignment (Wheel-First)
+
+The Bitbucket deployment pipeline is aligned to this runbook and uses wheel-first delivery:
+
+1. Build wheel: `uv build --wheel`
+2. Prepare app source: `uv run prepare-app-source`
+3. Validate/deploy bundle.
+4. Sync and deploy app source from `default_source_code_path` using `databricks apps deploy --mode SNAPSHOT`.
+5. Run app via `databricks bundle run multiagent-app --target "$DAB_TARGET"`.
+6. Final health gate checks `active_deployment.status.state == SUCCEEDED` and `app_status.state == RUNNING`.
+
+This keeps repository state clean (no committed wheel binaries) while ensuring each CI run deploys a fresh wheel artifact.
 
 ### Existing App Conflict
 
