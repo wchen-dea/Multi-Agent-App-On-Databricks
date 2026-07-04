@@ -6,7 +6,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -18,8 +17,13 @@ REACT_DIST_DIR = REACT_UI_DIR / "dist"
 APP_REACT_DIST_DIR = APP_SOURCE_DIR / "reactui-dist"
 
 
-def _run(command: list[str]) -> None:
-    subprocess.check_call(command, cwd=REPO_ROOT)
+def _log(message: str) -> None:
+    print(f"[prepare-app-source] {message}")
+
+
+def _run(command: list[str], *, cwd: Path = REPO_ROOT, env: dict[str, str] | None = None) -> None:
+    _log(f"Running: {' '.join(command)} (cwd={cwd})")
+    subprocess.check_call(command, cwd=cwd, env=env)
 
 
 def _latest_wheel() -> Path:
@@ -39,11 +43,11 @@ def _prepare_react_assets() -> None:
     build_env.setdefault("VITE_API_PROXY", "/invocations")
 
     if package_lock.exists():
-        subprocess.check_call(["npm", "ci"], cwd=REACT_UI_DIR, env=build_env)
+        _run(["npm", "ci"], cwd=REACT_UI_DIR, env=build_env)
     else:
-        subprocess.check_call(["npm", "install"], cwd=REACT_UI_DIR, env=build_env)
+        _run(["npm", "install"], cwd=REACT_UI_DIR, env=build_env)
 
-    subprocess.check_call(["npm", "run", "build"], cwd=REACT_UI_DIR, env=build_env)
+    _run(["npm", "run", "build"], cwd=REACT_UI_DIR, env=build_env)
 
     if not REACT_DIST_DIR.exists():
         raise FileNotFoundError(f"React UI build output not found: {REACT_DIST_DIR}")
@@ -56,17 +60,23 @@ def _prepare_react_assets() -> None:
 def main() -> int:
     APP_SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     WHEELS_DIR.mkdir(parents=True, exist_ok=True)
+    _log(f"Preparing app source in {APP_SOURCE_DIR}")
 
     # Build a fresh wheel artifact for this revision.
     _run(["uv", "build", "--wheel"])
 
     # Keep only one wheel in the deploy payload to minimize source size.
+    removed_wheels = 0
     for old_wheel in WHEELS_DIR.glob("*.whl"):
         old_wheel.unlink()
+        removed_wheels += 1
+    if removed_wheels:
+        _log(f"Removed {removed_wheels} existing wheel artifact(s) from payload")
 
     latest = _latest_wheel()
     destination = WHEELS_DIR / latest.name
     shutil.copy2(latest, destination)
+    _log(f"Copied wheel artifact: {latest.name}")
 
     # Build and package React UI assets for Databricks App static hosting.
     _prepare_react_assets()

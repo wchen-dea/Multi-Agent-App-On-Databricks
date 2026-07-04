@@ -13,6 +13,26 @@ Modern AI applications are moving from single-model chatbots to orchestrated sys
 
 This repository provides an MVP foundation that can scale to enterprise use cases.
 
+## Introduction Dependencies
+
+The current implementation depends on business semantics and AI metadata across governed tools and indexes:
+
+- Genie spaces: store_manager_genie, executive_genie, supply_chain_genie, sales_agent.
+- AI Search-backed indexes: product and article indexes, regional store indexes, and customer indexes.
+- Lakebase ODS-backed serving endpoints for operational and semantic retrieval workloads.
+
+## Backend UC Security and Governance Guidelines
+
+Project guidelines and best practices for Unity Catalog-governed backend execution:
+
+- Apply least privilege by default for both app identity and OBO identity, granting only required `USE CATALOG`, `USE SCHEMA`, and object-level permissions.
+- Separate environment assets (dev, qa, stg, prod) with explicit catalog/schema boundaries and avoid cross-environment data access from runtime credentials.
+- Enforce classification-aware routing in subagent metadata (`data_classification`, `allowed_personas`, `requires_evidence`) before tool execution.
+- Require evidence-backed responses for governed or sensitive routes and block outputs that fail guardrail policy checks.
+- Use Unity Catalog-governed audit persistence (`MESSAGE_BUS_BACKEND=uc_table`) for lifecycle, policy, auth, and guardrail events.
+- Protect customer and regional-store datasets with row/column-level governance controls and avoid exposing restricted fields in tool responses.
+- Keep backend-to-data contracts versioned and reviewed when adding new Genie spaces, AI Search indexes, or Lakebase ODS endpoints.
+
 ## Technology Perspective
 
 This project uses a modern AI app stack on Databricks:
