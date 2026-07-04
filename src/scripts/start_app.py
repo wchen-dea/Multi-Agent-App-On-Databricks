@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Start frontend and backend processes concurrently.
+Start React UI and backend processes concurrently.
 
 Requirements:
-1. Not reporting ready until BOTH frontend and backend processes are ready
+1. Not reporting ready until BOTH UI and backend processes are ready
 2. Exiting as soon as EITHER process fails
 3. Printing error logs if either process fails
 
@@ -28,9 +28,9 @@ from dotenv import load_dotenv
 
 # Process readiness log patterns.
 BACKEND_READY = [r"Uvicorn running on", r"Application startup complete", r"Started server process"]
-FRONTEND_READY = [r"Your app is available at"]
+FRONTEND_READY = [r"Uvicorn running on", r"Application startup complete", r"Started server process"]
 SRC_DIR = Path(__file__).parent.parent
-FRONTEND_APP_PATH = SRC_DIR / "frontend" / "ui_app.py"
+FRONTEND_DIST_PATH = SRC_DIR / "reactui" / "dist"
 
 
 def _env_int(primary: str, fallback: str | None, default: int) -> int:
@@ -274,16 +274,23 @@ class ProcessManager:
                 backend_port = public_port + 1
             self.port = backend_port
 
+        react_dist_path = Path(
+            os.environ.get("REACT_UI_DIST_DIR", str(FRONTEND_DIST_PATH))
+        ).resolve()
         if not self.no_ui:
-            if not FRONTEND_APP_PATH.exists():
+            if not react_dist_path.exists():
                 print(
-                    "ERROR: src/frontend/ui_app.py not found. "
-                    "Ensure it is present in the repo root."
+                    "ERROR: React UI dist not found. "
+                    f"Expected at: {react_dist_path}\n"
+                    "Build UI assets first with: uv run prepare-app-source"
                 )
                 self.no_ui = True
             else:
-                # Configure Chainlit to proxy requests to the backend invocations endpoint.
-                os.environ["API_PROXY"] = f"http://localhost:{self.port}/invocations"
+                # Route browser-origin invocations through the React UI proxy server.
+                os.environ["FRONTEND_BACKEND_PROXY"] = (
+                    f"http://localhost:{self.port}/invocations"
+                )
+                os.environ["REACT_UI_DIST_DIR"] = str(react_dist_path)
 
         # Open process log files with line-buffered writes.
         self.backend_log = open("backend.log", "w", buffering=1)
@@ -315,14 +322,18 @@ class ProcessManager:
             )
 
             if not self.no_ui:
-                # Start Chainlit UI process.
+                # Start React UI proxy server process.
                 if self.frontend_port is None:
                     self.frontend_port = _env_int("CHAT_APP_PORT", "PORT", 3000)
                 self.frontend_process = self.start_process(
                     [
-                        "uv", "run", "chainlit", "run", str(FRONTEND_APP_PATH),
-                        "--host", "0.0.0.0",
-                        "--port", str(self.frontend_port),
+                        "uv",
+                        "run",
+                        "python",
+                        "-m",
+                        "scripts.react_ui_server",
+                        "--port",
+                        str(self.frontend_port),
                     ],
                     "frontend",
                     self.frontend_log,

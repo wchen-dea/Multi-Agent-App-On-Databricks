@@ -187,6 +187,8 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - [docs/governance/business-semantics-and-ai-metadata-spec.md](docs/governance/business-semantics-and-ai-metadata-spec.md): reliable business semantics and required AI metadata contract.
 - [docs/governance/security-and-threat-model.md](docs/governance/security-and-threat-model.md): trust boundaries, threats, and controls.
 - [docs/operations/cost-and-performance-budget.md](docs/operations/cost-and-performance-budget.md): latency/cost budget framework and operating signals.
+- [docs/operations/mlflow-implementation-checklist.md](docs/operations/mlflow-implementation-checklist.md): one-page MLflow rollout checklist with owners, tasks, and acceptance criteria.
+- [docs/operations/mlflow-execution-tracker.md](docs/operations/mlflow-execution-tracker.md): live execution tracker template for status, ownership, due dates, dependencies, and evidence.
 - [docs/architecture/api-contract-spec.md](docs/architecture/api-contract-spec.md): invoke/stream API contract and error semantics.
 - [docs/operations/postmortem-template.md](docs/operations/postmortem-template.md): incident and regression postmortem template.
 - [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md): high-level architecture and request flow

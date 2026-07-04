@@ -36,11 +36,13 @@ def _install_wheel(wheel_path: Path) -> None:
 
 
 def main() -> None:
+    source_root = Path(__file__).resolve().parent
     wheel_path = _find_wheel()
     print(f"Installing wheel: {wheel_path.name}")
     _install_wheel(wheel_path)
 
     env = os.environ.copy()
+    env.setdefault("REACT_UI_DIST_DIR", str(source_root / "reactui-dist"))
     # Start the packaged app entrypoint after installation.
     cmd = ["uv", "run", "python", "-m", "scripts.start_app"]
     raise SystemExit(subprocess.call(cmd, env=env))

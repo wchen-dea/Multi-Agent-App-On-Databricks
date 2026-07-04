@@ -11,6 +11,8 @@ Use this index to navigate project documentation by purpose:
 - [governance/business-semantics-and-ai-metadata-spec.md](governance/business-semantics-and-ai-metadata-spec.md): canonical business semantics and required AI metadata contract.
 - [governance/security-and-threat-model.md](governance/security-and-threat-model.md): trust boundaries, threats, and implemented controls.
 - [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md): operating budgets, key signals, and release checks.
+- [operations/mlflow-implementation-checklist.md](operations/mlflow-implementation-checklist.md): one-page implementation plan with owners, tasks, and acceptance criteria for MLflow rollout.
+- [operations/mlflow-execution-tracker.md](operations/mlflow-execution-tracker.md): live status board template for owners, dates, dependencies, evidence, and blockers.
 - [architecture/api-contract-spec.md](architecture/api-contract-spec.md): API request/response and error behavior contract.
 - [operations/postmortem-template.md](operations/postmortem-template.md): standard template for incidents and release regressions.
 - [architecture/system-architecture.md](architecture/system-architecture.md): high-level system architecture, boundaries, and request flow.
@@ -32,13 +34,15 @@ Use this index to navigate project documentation by purpose:
 8. [quality/evaluation-spec.md](quality/evaluation-spec.md)
 9. [governance/security-and-threat-model.md](governance/security-and-threat-model.md)
 10. [operations/cost-and-performance-budget.md](operations/cost-and-performance-budget.md)
-11. [architecture/api-contract-spec.md](architecture/api-contract-spec.md)
-12. [architecture/system-design.md](architecture/system-design.md)
-13. [architecture/design-artifacts/README.md](architecture/design-artifacts/README.md)
-14. [operations/runbook.md](operations/runbook.md)
-15. [operations/postmortem-template.md](operations/postmortem-template.md)
-16. [internal/claude.md](internal/claude.md)
-17. [adrs/README.md](adrs/README.md)
+11. [operations/mlflow-implementation-checklist.md](operations/mlflow-implementation-checklist.md)
+12. [operations/mlflow-execution-tracker.md](operations/mlflow-execution-tracker.md)
+13. [architecture/api-contract-spec.md](architecture/api-contract-spec.md)
+14. [architecture/system-design.md](architecture/system-design.md)
+15. [architecture/design-artifacts/README.md](architecture/design-artifacts/README.md)
+16. [operations/runbook.md](operations/runbook.md)
+17. [operations/postmortem-template.md](operations/postmortem-template.md)
+18. [internal/claude.md](internal/claude.md)
+19. [adrs/README.md](adrs/README.md)
 
 ## Quick Config Snippets
 

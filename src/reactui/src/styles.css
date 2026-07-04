@@ -1,0 +1,145 @@
+:root {
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  color: #f9f7f2;
+  background:
+    radial-gradient(1200px 700px at 5% -10%, rgba(255, 167, 38, 0.2), transparent 55%),
+    radial-gradient(900px 600px at 100% 0%, rgba(0, 137, 123, 0.22), transparent 45%),
+    #0f1720;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
+}
+
+.app-header p {
+  margin: 0.25rem 0 0;
+  color: #c9d6db;
+}
+
+.starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.starters button {
+  border: 1px solid rgba(201, 214, 219, 0.35);
+  background: rgba(23, 35, 47, 0.75);
+  color: #f9f7f2;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.starters button:hover:enabled {
+  border-color: #ffa726;
+  transform: translateY(-1px);
+}
+
+.chat-log {
+  background: rgba(10, 17, 25, 0.72);
+  border: 1px solid rgba(201, 214, 219, 0.2);
+  border-radius: 16px;
+  padding: 0.9rem;
+  min-height: 50vh;
+  max-height: 60vh;
+  overflow: auto;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.bubble {
+  border-radius: 14px;
+  padding: 0.65rem 0.75rem;
+  max-width: min(88%, 760px);
+}
+
+.bubble pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.4;
+}
+
+.bubble-user {
+  margin-left: auto;
+  background: linear-gradient(120deg, #1f6659, #2b8a74);
+}
+
+.bubble-assistant {
+  margin-right: auto;
+  background: linear-gradient(130deg, #25384c, #314e68);
+}
+
+.chat-input {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chat-input textarea {
+  width: 100%;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 214, 219, 0.35);
+  background: rgba(23, 35, 47, 0.88);
+  color: #f9f7f2;
+  padding: 0.7rem;
+  font: inherit;
+}
+
+.chat-input button {
+  justify-self: end;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(130deg, #ffa726, #ffcc80);
+  color: #1e2934;
+  font-weight: 700;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+}
+
+.chat-input button:disabled,
+.starters button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .app-shell {
+    padding: 0.8rem;
+  }
+
+  .chat-log {
+    min-height: 56vh;
+    max-height: 62vh;
+  }
+
+  .bubble {
+    max-width: 100%;
+  }
+}
