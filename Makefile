@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help test build-app-source validate bundle-deploy import ensure-running deploy redeploy health smoke logs status
+.PHONY: help test build-app-source validate bundle-deploy import ensure-running stop deploy redeploy health smoke logs status
 
 PROFILE ?= DEFAULT
 TARGET ?= dev
@@ -18,6 +18,7 @@ help:
 	@printf "  make validate          Validate Databricks bundle for TARGET\n"
 	@printf "  make bundle-deploy     Try bundle deploy for TARGET (may fail on Terraform registry)\n"
 	@printf "  make import            Upload .databricks_app_source into app workspace path\n"
+	@printf "  make stop              Stop app compute for APP_NAME\n"
 	@printf "  make deploy            Deploy uploaded app source with Databricks Apps\n"
 	@printf "  make redeploy          Build, validate, import, deploy, and verify health\n"
 	@printf "  make health            Verify app deployment/app state is healthy\n"
@@ -65,6 +66,16 @@ ensure-running:
 	done; \
 	printf "App $(APP_NAME) is not RUNNING (state=%s)\n" "$$APP_STATE" >&2; \
 	exit 1
+
+stop:
+	@databricks apps stop "$(APP_NAME)" --profile "$(PROFILE)" >/dev/null 2>&1 || true; \
+	APP_STATE="$$($(APP_GET_JSON) | jq -r '.app_status.state')"; \
+	COMPUTE_STATE="$$($(APP_GET_JSON) | jq -r '.compute_status.state')"; \
+	printf "app=%s\ncompute=%s\n" "$$APP_STATE" "$$COMPUTE_STATE"; \
+	if [ "$$COMPUTE_STATE" != "STOPPED" ]; then \
+		printf "App $(APP_NAME) compute is not STOPPED (compute=%s)\n" "$$COMPUTE_STATE" >&2; \
+		exit 1; \
+	fi
 
 deploy: ensure-running
 	@APP_JSON="$$($(APP_GET_JSON))"; \
