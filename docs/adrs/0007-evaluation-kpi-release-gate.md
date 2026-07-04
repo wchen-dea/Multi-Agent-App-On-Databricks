@@ -46,6 +46,6 @@ Controls:
 
 ## Implementation Notes
 
-- Gate logic and custom auth scorer: [backend/evaluate_agent.py](../../backend/evaluate_agent.py)
+- Gate logic and custom auth scorer: [src/backend/evaluate_agent.py](../../src/backend/evaluate_agent.py)
 - Pipeline enforcement: [.github/workflows/databricks-cicd.yml](../../.github/workflows/databricks-cicd.yml)
 - Operational guidance: [docs/operations/runbook.md](../operations/runbook.md)

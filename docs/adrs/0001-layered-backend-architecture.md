@@ -12,10 +12,10 @@ The backend started as a small set of top-level modules. As the application grew
 
 Adopt a layered package structure under backend:
 
-- `backend/api`: request handlers, server bootstrap, dependency composition
-- `backend/services`: business logic and orchestration services
-- `backend/domain`: typed domain models and config loading
-- `backend/shared`: reusable utilities and cross-cutting helpers
+- `src/backend/api`: request handlers, server bootstrap, dependency composition
+- `src/backend/services`: business logic and orchestration services
+- `src/backend/domain`: typed domain models and config loading
+- `src/backend/shared`: reusable utilities and cross-cutting helpers
 
 ## Alternatives Considered
 

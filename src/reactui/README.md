@@ -1,8 +1,8 @@
-# React UI (Parallel Frontend)
+# React UI (Primary Frontend)
 
-This folder provides a TypeScript and React frontend that runs in parallel with the existing Python frontend.
+This folder provides the primary TypeScript and React frontend used by the app runtime.
 
-## Current Parity Scope
+## Current Scope
 
 - Chat request and streaming response rendering through backend `/invocations`.
 - Session commands:
@@ -44,4 +44,5 @@ npm run build
 ## Notes
 
 - Default backend URL is `http://localhost:8000/invocations`.
-- The React UI is intentionally decoupled so you can run parity checks side-by-side with the existing frontend.
+- The React UI is served by the app runtime through `src/scripts/react_ui_server.py`.
+- The legacy Chainlit implementation remains available under `src/frontend/` for fallback and compatibility checks.

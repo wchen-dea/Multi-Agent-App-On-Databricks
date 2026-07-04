@@ -10,7 +10,7 @@ As services gained protocol-based dependencies (runtime auth, orchestration, mes
 
 ## Decision
 
-Use `backend/api/dependencies.py` as the composition root.
+Use `src/backend/api/dependencies.py` as the composition root.
 
 This module builds:
 

@@ -26,7 +26,7 @@ This project uses a modern AI app stack on Databricks:
 - Governed data access: Unity Catalog permissions and SQL warehouse controls.
 - Hybrid authorization model: per-tool app identity and user identity (OBO) routing.
 - Deployment-as-code: Databricks Declarative Automation Bundles with target overlays.
-- Streaming-first UX: Chainlit frontend with incremental token streaming.
+- Streaming-first UX: React + TypeScript frontend with incremental token streaming.
 
 ## Functionality Perspective
 
@@ -67,7 +67,7 @@ The runtime uses a hybrid authorization model:
 - App Authorization: tools execute with the app service principal identity.
 - User Authorization (OBO): tools execute with the forwarded user access token.
 
-Subagent authorization is configured in `backend/domain/subagents.json` using `auth_mode`:
+Subagent authorization is configured in `src/backend/domain/subagents.json` using `auth_mode`:
 
 - `auth_mode: app`
 - `auth_mode: obo`
@@ -77,7 +77,7 @@ Current defaults:
 - Genie subagents default to `obo` when not explicitly set.
 - Non-Genie subagents default to `app` when not explicitly set.
 
-The backend loads this file at startup and validates it with typed models in `backend/domain/subagent_config.py`.
+The backend loads this file at startup and validates it with typed models in `src/backend/domain/subagent_config.py`.
 Override the path with `SUBAGENTS_CONFIG_PATH`.
 
 If an OBO tool is selected and no forwarded token is present, the runtime raises a clear user-facing authorization error instead of falling back silently.
@@ -94,9 +94,9 @@ Lifecycle and policy events are emitted through the message bus. Backend selecti
 
 For governed execution, the runtime emits policy allow/deny decisions and response guardrail pass/block outcomes.
 
-## Chainlit Token Commands
+## UI Token Commands
 
-The Chainlit UI supports session-scoped token commands for OBO testing:
+The React UI supports session-scoped token commands for OBO testing:
 
 - `/token <databricks_access_token>`: store a forwarded token for this chat session.
 - `/clear-token`: clear the forwarded token from this chat session.
@@ -107,7 +107,7 @@ When set, the UI forwards the token to backend `/invocations` as the `x-forwarde
 
 High-level request path:
 
-1. User message enters Chainlit UI.
+1. User message enters React UI.
 2. Request reaches Databricks App endpoint.
 3. MLflow Agent Server dispatches invoke or stream handlers.
 4. Orchestrator selects tools and specialist agents.
@@ -120,9 +120,10 @@ For architecture diagrams, see [docs/architecture/system-architecture.md](docs/a
 
 - [src/backend/](src/backend): orchestrator runtime, handlers, request normalization, server startup
 - [src/backend/README.md](src/backend/README.md): backend-focused setup, runtime behavior, and operations guide
-- [src/frontend/ui_app.py](src/frontend/ui_app.py): Chainlit bootstrap entrypoint
-- [src/frontend/app/](src/frontend/app): modular frontend package (handlers, config, session, streaming, UI)
-- [src/frontend/README.md](src/frontend/README.md): frontend-focused setup, token forwarding, and troubleshooting guide
+- [src/reactui/](src/reactui): primary React UI (TypeScript) client for chat, commands, and stream rendering
+- [src/reactui/README.md](src/reactui/README.md): React UI setup, build, and local run guide
+- [src/frontend/](src/frontend): legacy Chainlit frontend retained for compatibility and migration fallback
+- [src/frontend/README.md](src/frontend/README.md): legacy Chainlit frontend guide
 - [src/scripts/](src/scripts): quickstart, preflight, local start, discovery, and permission helpers
 - [resources/multiagent_app.yml](resources/multiagent_app.yml): shared Databricks app resource definition
 - [targets/](targets): target-specific deployment overlays

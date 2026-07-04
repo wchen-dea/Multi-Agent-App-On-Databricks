@@ -51,7 +51,7 @@ All allow/deny decisions are emitted as lifecycle events.
 
 ## Implementation Notes
 
-- Policy service: [backend/services/policy_service.py](../../backend/services/policy_service.py)
-- Runtime integration: [backend/services/runtime_auth_service.py](../../backend/services/runtime_auth_service.py)
-- Guardrails service: [backend/services/guardrails_service.py](../../backend/services/guardrails_service.py)
-- Handler enforcement: [backend/api/handlers.py](../../backend/api/handlers.py)
+- Policy service: [src/backend/services/policy_service.py](../../src/backend/services/policy_service.py)
+- Runtime integration: [src/backend/services/runtime_auth_service.py](../../src/backend/services/runtime_auth_service.py)
+- Guardrails service: [src/backend/services/guardrails_service.py](../../src/backend/services/guardrails_service.py)
+- Handler enforcement: [src/backend/api/handlers.py](../../src/backend/api/handlers.py)

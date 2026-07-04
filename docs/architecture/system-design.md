@@ -10,9 +10,9 @@ This document covers low-level design and implementation details. High-level arc
 
 ## Current Status
 
-- Runtime uses a layered backend package structure (`backend/api`, `backend/services`, `backend/domain`, `backend/shared`).
-- Dependency composition and protocol-driven DI are centralized in `backend/api/dependencies.py` and `backend/services/interfaces.py`.
-- Local startup orchestration handles hosted-port conflicts in `scripts/start_app.py`.
+- Runtime uses a layered backend package structure (`src/backend/api`, `src/backend/services`, `src/backend/domain`, `src/backend/shared`).
+- Dependency composition and protocol-driven DI are centralized in `src/backend/api/dependencies.py` and `src/backend/services/interfaces.py`.
+- Local startup orchestration handles hosted-port conflicts in `src/scripts/start_app.py`.
 
 ## Main Content
 
@@ -20,108 +20,103 @@ This document covers low-level design and implementation details. High-level arc
 
 #### Backend Runtime
 
-- `backend/api/handlers.py`
+- `src/backend/api/handlers.py`
   - Defines `invoke_handler` and `stream_handler`
   - Builds orchestrator agent at request time
   - Connects healthy MCP servers per request
   - Converts request payloads into normalized messages
 
-- `backend/api/dependencies.py`
+- `src/backend/api/dependencies.py`
   - Central composition root for API/service dependencies
   - Builds default dependency container for handlers, runtime auth, and orchestrator services
   - Provides single override point for environment-specific wiring
 
-- `backend/api/server.py`
+- `src/backend/api/server.py`
   - Loads `.env`
   - Initializes `AgentServer("ResponsesAgent", enable_chat_proxy=True)`
   - Exposes root route and application startup
 
-- `backend/services/runtime_auth_service.py`
+- `src/backend/services/runtime_auth_service.py`
   - Builds request-scoped hybrid auth context (app + optional OBO user identity)
   - Applies request-time policy filtering before tool/MCP construction
   - Builds auth-aware subagent tools and MCP server definitions
   - Emits auth trace metadata for routing and tool execution
   - Accepts injectable typed dependencies for identity/session/trace/tool-server builders
 
-- `backend/services/policy_service.py`
+- `src/backend/services/policy_service.py`
   - Builds policy context from request metadata (persona, requested tool, confidence)
   - Enforces policy decisions by auth mode, identity presence, persona, and data classification
   - Returns explicit allow/deny decisions with reason codes
 
-- `backend/services/guardrails_service.py`
+- `src/backend/services/guardrails_service.py`
   - Applies deterministic response guardrails
   - Enforces evidence requirement for governed answers
   - Blocks unsafe output and low-confidence sensitive responses
 
-- `backend/services/orchestrator_service.py`
+- `src/backend/services/orchestrator_service.py`
   - Creates callable tools for configured subagents
   - Selects app vs OBO client per subagent tool call
   - Builds Genie MCP server list with auth-aware workspace client selection
   - Assembles orchestrator instructions dynamically
   - Supports injectable dependencies for trace updates, tool wrapping, and MCP server creation
 
-- `backend/services/interfaces.py`
+- `src/backend/services/interfaces.py`
   - Defines protocol-based service interfaces for dependency injection
   - Standardizes contracts for auth-context and tool/server builder dependencies
 
-- `backend/services/message_bus.py`
+- `src/backend/services/message_bus.py`
   - Provides message bus implementations for lifecycle event publishing
   - Ships with no-op, structured-logging, Kafka, RabbitMQ, and UC audit-table bus implementations
   - Serves as extension point for external queue/broker integrations
 
-- `backend/domain/subagent_config.py`
+- `src/backend/domain/subagent_config.py`
   - Typed `SubagentConfig` dataclass
   - Validation for subagent type-specific required fields and `auth_mode`
   - Loads and validates canonical `SUBAGENTS` from external JSON config
 
-- `backend/domain/subagents.json`
+- `src/backend/domain/subagents.json`
   - Canonical subagent configuration data source
   - Environment-specific path override via `SUBAGENTS_CONFIG_PATH`
 
-- `backend/shared/request_utils.py`
+- `src/backend/shared/request_utils.py`
   - Normalizes input items into plain role/content messages
   - Extracts MCP user-facing errors from exception structures
 
-- `backend/shared/runtime_utils.py`
+- `src/backend/shared/runtime_utils.py`
   - Session ID extraction
   - Forwarded token extraction (`x-forwarded-access-token`)
   - Request identity context construction for hybrid auth
   - Workspace host and MCP URL construction
   - Stream event normalization for stable item IDs
 
-- `backend/shared/logging_config.py`
+- `src/backend/shared/logging_config.py`
   - Centralized root logger configuration for backend entrypoints
   - Consistent level/format/date handling from runtime settings
   - Suppresses noisy MLflow autologging internals
 
 #### Frontend Runtime
 
-- `frontend/ui_app.py`
-  - Thin Chainlit bootstrap that imports and registers UI handlers
+- `src/reactui/src/App.tsx`
+  - Main React chat UI flow for requests, command parsing, and response rendering
 
-- `frontend/app/handlers.py`
-  - Handles chat start and message events
-  - Proxies requests to backend `/invocations`
-  - Orchestrates command handling, streaming, and response rendering
+- `src/reactui/src/api.ts`
+  - Sends invocation payloads and manages stream/invoke behavior to backend routes
 
-- `frontend/app/config.py`
-  - Loads typed frontend runtime settings from environment
+- `src/reactui/src/stream.ts`
+  - Parses streaming events, text deltas, and source/tool provenance hints
 
-- `frontend/app/session.py`
-  - Centralizes session state for history and forwarded token
+- `src/reactui/src/config.ts`
+  - Loads typed runtime settings from frontend environment variables
 
-- `frontend/app/commands.py`
-  - Parses slash commands and token masking helpers
+- `src/scripts/react_ui_server.py`
+  - Serves built React assets and proxies `/invocations` to backend runtime
 
-- `frontend/app/stream_events.py`
-  - Extracts text deltas and response provenance hints from stream events
-
-- `frontend/app/ui_content.py`
-  - Builds branded welcome panel, starter prompts, and source badges
+- `src/frontend/`
+  - Legacy Chainlit frontend retained for compatibility and fallback use
 
 #### Local Process Orchestration
 
-- `scripts/start_app.py`
+- `src/scripts/start_app.py`
   - Starts backend and optional frontend in parallel
   - Tracks readiness patterns from logs
   - Detects first failure and exits with failing process code
@@ -137,7 +132,7 @@ This document covers low-level design and implementation details. High-level arc
 - Dependency injection pattern: handlers/services support typed dependency containers for testability and decoupling.
 - Event bus pattern: lifecycle events are published through an abstract message bus interface.
 - Adapter pattern: request and error normalization provides a stable internal payload shape.
-- Proxy pattern: Chainlit frontend proxies client interactions to backend invocation handlers.
+- Proxy pattern: React UI server proxies browser-origin requests to backend invocation handlers.
 - Environment overlay pattern: shared bundle config plus per-target overrides (`dev`, `qa`, `stg`, `prod`).
 
 ## Request Lifecycle
@@ -235,12 +230,12 @@ Request header used at runtime for OBO:
 
 | File | Responsibility |
 | ---- | -------------- |
-| `backend/api/handlers.py` | Handler entrypoints and orchestration wiring |
-| `backend/services/orchestrator_service.py` | Tool/server construction and orchestrator assembly |
-| `backend/domain/subagent_config.py` | Typed subagent definitions and validation |
-| `backend/api/server.py` | MLflow Agent Server bootstrap |
-| `frontend/ui_app.py` | UI and backend proxy streaming |
-| `scripts/start_app.py` | Local process supervision |
+| `src/backend/api/handlers.py` | Handler entrypoints and orchestration wiring |
+| `src/backend/services/orchestrator_service.py` | Tool/server construction and orchestrator assembly |
+| `src/backend/domain/subagent_config.py` | Typed subagent definitions and validation |
+| `src/backend/api/server.py` | MLflow Agent Server bootstrap |
+| `src/reactui/src/App.tsx` | Primary chat UI and command flow |
+| `src/scripts/start_app.py` | Local process supervision |
 
 ## Related Docs
 

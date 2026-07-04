@@ -47,6 +47,6 @@ Runtime behavior:
 
 ## Implementation Notes
 
-- Backend implementation: [backend/services/message_bus.py](../../backend/services/message_bus.py)
-- Runtime settings: [backend/shared/settings.py](../../backend/shared/settings.py)
+- Backend implementation: [src/backend/services/message_bus.py](../../src/backend/services/message_bus.py)
+- Runtime settings: [src/backend/shared/settings.py](../../src/backend/shared/settings.py)
 - Deployment wiring: [databricks.yml](../../databricks.yml), [resources/multiagent_app.yml](../../resources/multiagent_app.yml), [targets/qa.yml](../../targets/qa.yml), [targets/stg.yml](../../targets/stg.yml), [targets/prod.yml](../../targets/prod.yml)

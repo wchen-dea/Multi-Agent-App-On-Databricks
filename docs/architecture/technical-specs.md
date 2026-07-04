@@ -7,14 +7,16 @@ This document summarizes the technical specifications currently implemented in t
 - Layered backend architecture is implemented with API, services, domain, and shared layers.
 - Request handling supports both invoke and stream flows through MLflow Agent Server handlers.
 - Orchestrator agent is assembled at runtime with available tools and healthy MCP servers.
-- Frontend is modularized for session state, command parsing, streaming event handling, and UI content composition.
+- Frontend runtime is React UI first, with a legacy Chainlit path retained for compatibility.
 
 Primary implementation:
 
-- backend/api/handlers.py
-- backend/api/dependencies.py
-- backend/services/orchestrator_service.py
-- frontend/app/handlers.py
+- src/backend/api/handlers.py
+- src/backend/api/dependencies.py
+- src/backend/services/orchestrator_service.py
+- src/reactui/src/App.tsx
+- src/reactui/src/api.ts
+- src/scripts/react_ui_server.py
 
 ## 2. Tool Routing Specification
 
@@ -25,9 +27,9 @@ Primary implementation:
 
 Primary implementation:
 
-- backend/domain/subagent_config.py
-- backend/domain/subagents.json
-- backend/services/orchestrator_service.py
+- src/backend/domain/subagent_config.py
+- src/backend/domain/subagents.json
+- src/backend/services/orchestrator_service.py
 
 ## 3. Authorization Specification
 
@@ -38,8 +40,8 @@ Primary implementation:
 
 Primary implementation:
 
-- backend/shared/runtime_utils.py
-- backend/services/runtime_auth_service.py
+- src/backend/shared/runtime_utils.py
+- src/backend/services/runtime_auth_service.py
 
 ## 4. Governance and Policy Specification
 
@@ -54,9 +56,9 @@ Primary implementation:
 
 Primary implementation:
 
-- backend/domain/subagent_config.py
-- backend/services/policy_service.py
-- backend/services/runtime_auth_service.py
+- src/backend/domain/subagent_config.py
+- src/backend/services/policy_service.py
+- src/backend/services/runtime_auth_service.py
 
 ## 5. Response Guardrail Specification
 
@@ -67,8 +69,8 @@ Primary implementation:
 
 Primary implementation:
 
-- backend/services/guardrails_service.py
-- backend/api/handlers.py
+- src/backend/services/guardrails_service.py
+- src/backend/api/handlers.py
 
 ## 6. Observability and Audit Specification
 
@@ -87,8 +89,8 @@ Supported backends:
 
 Primary implementation:
 
-- backend/services/message_bus.py
-- backend/shared/settings.py
+- src/backend/services/message_bus.py
+- src/backend/shared/settings.py
 
 ## 7. Release Quality Gate Specification
 
@@ -99,7 +101,7 @@ Primary implementation:
 
 Primary implementation:
 
-- backend/evaluate_agent.py
+- src/backend/evaluate_agent.py
 - .github/workflows/databricks-cicd.yml
 
 ## 8. Deployment and Environment Specification
@@ -133,7 +135,7 @@ Primary implementation:
 - tests/test_guardrails_service.py
 - tests/test_message_bus_backends.py
 - tests/test_message_bus_integration.py
-- scripts/preflight.py
+- src/scripts/preflight.py
 
 ## Related Documents
 

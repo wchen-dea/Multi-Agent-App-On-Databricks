@@ -1,14 +1,16 @@
-# Frontend README
+# Legacy Frontend README
 
 ## Overview
 
-The frontend is a Chainlit chat UI that:
+This directory contains the legacy Chainlit chat UI that was used before the React UI became primary.
+
+It:
 
 - captures user prompts and chat history,
 - streams responses from the backend `/invocations` endpoint,
 - supports optional forwarded user token commands for OBO flows.
 
-Primary entrypoint:
+Legacy entrypoint:
 
 - `src/frontend/ui_app.py`
 
@@ -22,15 +24,17 @@ Primary entrypoint:
 - `src/frontend/app/stream_events.py`: stream event parsing and delta extraction.
 - `src/frontend/app/ui_content.py`: welcome content, starter prompts, source badges.
 
-## Local Run
+## Local Run (Legacy)
 
-Recommended from repo root:
+Primary local workflow uses the React UI via `uv run start-app`.
+
+Use the commands below only when explicitly validating the legacy Chainlit flow.
 
 ```bash
 uv run start-app
 ```
 
-This starts backend + frontend together and configures `API_PROXY` automatically.
+This starts backend + UI together and configures `API_PROXY` automatically.
 
 Frontend-only run (when backend is already running):
 
@@ -38,15 +42,15 @@ Frontend-only run (when backend is already running):
 chainlit run src/frontend/ui_app.py --port 3000
 ```
 
-## For New Developers
+## Legacy Maintenance Notes
 
-Use this workflow when iterating on chat UX or stream rendering:
+Use this workflow only when maintaining Chainlit compatibility behavior:
 
 1. Start full stack from repo root: `uv run start-app`
 2. Edit files under `src/frontend/app/`
 3. Re-run and verify behavior in the chat UI
 
-Frontend code paths most often changed:
+Legacy frontend code paths most often changed:
 
 - `src/frontend/app/handlers.py`: message loop and stream consumption.
 - `src/frontend/app/ui_content.py`: welcome panel and prompt starters.

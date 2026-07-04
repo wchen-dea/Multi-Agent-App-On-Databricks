@@ -285,9 +285,9 @@ EVAL_MIN_GROUNDEDNESS=0.80
 EVAL_REQUIRE_ALL_KPIS=true
 ```
 
-#### OBO token simulation in Chainlit UI
+#### OBO token simulation in UI
 
-Use Chainlit session commands:
+Use UI session commands:
 
 ```text
 /token <databricks_access_token>

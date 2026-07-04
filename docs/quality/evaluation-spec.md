@@ -18,7 +18,7 @@ Provide one source of truth for evaluation datasets, scorer behavior, KPI thresh
 
 ### Baseline Simulation Set
 
-- Source: `backend/evaluate_agent.py` simulator test cases
+- Source: `src/backend/evaluate_agent.py` simulator test cases
 - Use for: pre-merge regression checks and release-gate validation
 
 ### Governed and Sensitive Set
@@ -48,7 +48,7 @@ Default scorers:
 
 Custom scorer implementation:
 
-- `backend/evaluate_agent.py`
+- `src/backend/evaluate_agent.py`
 
 ## KPI Thresholds (Release Gate)
 

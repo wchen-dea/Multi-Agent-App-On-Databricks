@@ -10,7 +10,7 @@ This document covers high-level architecture only. Implementation-level details 
 
 ## Current Status
 
-- Dev deployment is live with Chainlit enabled.
+- Dev deployment is live with React UI as the primary client.
 - Hosted runtime uses `uv run start-app`.
 - Deployments may intermittently fail when Terraform provider registry is unreachable; direct app deploy is the operational fallback.
 
@@ -41,7 +41,7 @@ Runtime stack:
 
 ### Major Components
 
-- Client: Chainlit UI
+- Client: React UI static app + proxy
 - Entry runtime: MLflow Agent Server (`ResponsesAgent`)
 - Orchestration layer: tool selection and response composition
 - Integration layer: MCP + serving endpoint calls
@@ -54,7 +54,7 @@ Runtime stack:
 - MLflow Agent Server (`ResponsesAgent`): invoke/stream serving runtime.
 - OpenAI Agents SDK: agent orchestration and tool-calling loop.
 - Databricks OpenAI integration: Responses API client integration for Databricks-hosted models and endpoints.
-- Chainlit: conversational frontend UI and streaming interaction layer.
+- React UI (TypeScript): conversational frontend and streaming interaction layer.
 - Databricks Apps: managed application hosting platform.
 - Databricks Declarative Automation Bundles (DAB): deployment framework with target-based environment management.
 
@@ -69,7 +69,7 @@ flowchart LR
     end
 
     subgraph Client[Client UI]
-        UI[Chainlit UI]
+        UI[React UI]
     end
 
     subgraph Platform[Databricks App Platform]
@@ -138,7 +138,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     U[User]
-    U --> UI[Chainlit UI]
+    U --> UI[React UI]
     UI -.optional x-forwarded-access-token.-> APP
     UI --> APP[Databricks App Endpoint]
     APP --> S[MLflow Agent Server ResponsesAgent]

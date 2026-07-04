@@ -24,7 +24,7 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 - Type: genie
 - Runtime name: `sales_agent`
-- Space ID source: `backend/domain/subagents.json`
+- Space ID source: `src/backend/domain/subagents.json`
 - Auth mode: obo
 - Classification: confidential
 - Owner: sales-analytics
@@ -34,7 +34,7 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 - Type: genie
 - Runtime name: `store_manager_genie`
-- Space ID source: `backend/domain/subagents.json`
+- Space ID source: `src/backend/domain/subagents.json`
 - Auth mode: obo
 - Classification: confidential
 - Owner: store-operations
@@ -44,7 +44,7 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 - Type: genie
 - Runtime name: `executive_genie`
-- Space ID source: `backend/domain/subagents.json`
+- Space ID source: `src/backend/domain/subagents.json`
 - Auth mode: obo
 - Classification: restricted
 - Owner: executive-analytics
@@ -54,7 +54,7 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 - Type: genie
 - Runtime name: `supply_chain_genie`
-- Space ID source: `backend/domain/subagents.json`
+- Space ID source: `src/backend/domain/subagents.json`
 - Auth mode: obo
 - Classification: confidential
 - Owner: supply-chain-analytics
@@ -82,7 +82,7 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 ## Maintenance Rules
 
-- Registry updates are required whenever `backend/domain/subagents.json` changes.
+- Registry updates are required whenever `src/backend/domain/subagents.json` changes.
 - Deprecated entries must include migration guidance and removal timeline.
 - Runtime, bundle variables, and app permissions must remain consistent.
 
