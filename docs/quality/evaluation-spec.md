@@ -73,7 +73,7 @@ uv run agent-evaluate
 
 CI pipeline enforcement:
 
-- `bitbucket-pipelines.yml`
+- `.github/workflows/databricks-cicd.yml`
 
 ## Reporting and Review
 

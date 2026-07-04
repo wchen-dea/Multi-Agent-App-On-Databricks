@@ -201,5 +201,5 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - Development environment is active and user-accessible.
 - Multi-agent routing across Genie and serving endpoints is implemented.
 - Governed routing policy, response guardrails, and lifecycle audit-table persistence are implemented.
-- Deployment pipeline supports dev, qa, stg, and prod target workflows.
+- GitHub Actions pipeline supports PR CI and deployment automation for dev, qa, stg, and prod.
 - Operational controls and troubleshooting guidance are documented in the runbook.

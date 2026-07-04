@@ -1,24 +1,33 @@
-.PHONY: help test build-app-source build-wheel validate-dev bundle-deploy-dev import-dev deploy-dev redeploy-dev health-dev smoke-dev logs-dev status-dev
+SHELL := /bin/sh
+
+.PHONY: help test build-app-source validate bundle-deploy import ensure-running deploy redeploy health smoke logs status
 
 PROFILE ?= DEFAULT
 TARGET ?= dev
-APP_NAME ?= multiagent-app-dev
+APP_NAME ?= multiagent-app-$(TARGET)
+APP_START_MAX_ATTEMPTS ?= 30
+APP_START_POLL_SECONDS ?= 2
+
+APP_GET_JSON = databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json
 
 help:
 	@printf "Local dev Databricks app workflow\n\n"
 	@printf "Targets:\n"
 	@printf "  make test              Run local test suite\n"
 	@printf "  make build-app-source  Build wheel + React UI app source payload\n"
-	@printf "  make build-wheel       Backward-compatible alias for build-app-source\n"
-	@printf "  make validate-dev      Validate Databricks bundle for dev\n"
-	@printf "  make bundle-deploy-dev Try bundle deploy for dev (may fail on Terraform registry)\n"
-	@printf "  make import-dev        Upload .databricks_app_source into the app workspace path\n"
-	@printf "  make deploy-dev        Deploy the uploaded app source with Databricks Apps\n"
-	@printf "  make redeploy-dev      Build, validate, import, deploy, and verify health\n"
-	@printf "  make health-dev        Verify app deployment/app state is healthy\n"
-	@printf "  make smoke-dev         Smoke-check app URL, React index shell, and /invocations route\n"
-	@printf "  make status-dev        Print current app status JSON\n"
-	@printf "  make logs-dev          Tail recent app logs\n"
+	@printf "  make validate          Validate Databricks bundle for TARGET\n"
+	@printf "  make bundle-deploy     Try bundle deploy for TARGET (may fail on Terraform registry)\n"
+	@printf "  make import            Upload .databricks_app_source into app workspace path\n"
+	@printf "  make deploy            Deploy uploaded app source with Databricks Apps\n"
+	@printf "  make redeploy          Build, validate, import, deploy, and verify health\n"
+	@printf "  make health            Verify app deployment/app state is healthy\n"
+	@printf "  make smoke            Smoke-check app URL, React index shell, and /invocations route\n"
+	@printf "  make status            Print current app status JSON\n"
+	@printf "  make logs              Tail recent app logs\n"
+	@printf "\n"
+	@printf "Examples:\n"
+	@printf "  make redeploy TARGET=dev APP_NAME=multiagent-app-dev\n"
+	@printf "  make health TARGET=qa APP_NAME=multiagent-app-qa\n"
 
 test:
 	uv run pytest -q
@@ -26,48 +35,50 @@ test:
 build-app-source:
 	uv run prepare-app-source
 
-build-wheel: build-app-source
-
-validate-dev:
+validate:
 	databricks bundle validate -t "$(TARGET)" --profile "$(PROFILE)"
 
-bundle-deploy-dev:
+bundle-deploy:
 	@databricks bundle deploy -t "$(TARGET)" --profile "$(PROFILE)" || \
-		(printf "bundle deploy failed; use make redeploy-dev for the Terraform-free fallback path\n" && exit 1)
+		(printf "bundle deploy failed; use make redeploy for the Terraform-free fallback path\n" && exit 1)
 
-import-dev: build-app-source
-	@APP_SRC="$$(databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json | jq -r '.default_source_code_path')"; \
+import: build-app-source
+	@APP_JSON="$$($(APP_GET_JSON))"; \
+	APP_SRC="$$(printf "%s" "$$APP_JSON" | jq -r '.default_source_code_path')"; \
 	if [ -z "$$APP_SRC" ] || [ "$$APP_SRC" = "null" ]; then \
 		printf "Could not resolve default_source_code_path for $(APP_NAME)\n" >&2; \
 		exit 1; \
 	fi; \
 	databricks workspace import-dir .databricks_app_source "$$APP_SRC" --overwrite --profile "$(PROFILE)"
 
-deploy-dev:
-	@APP_SRC="$$(databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json | jq -r '.default_source_code_path')"; \
+ensure-running:
+	@databricks apps start "$(APP_NAME)" --profile "$(PROFILE)" >/dev/null 2>&1 || true; \
+	APP_STATE=""; \
+	ATTEMPT=0; \
+	while [ $$ATTEMPT -lt "$(APP_START_MAX_ATTEMPTS)" ]; do \
+		APP_STATE="$$($(APP_GET_JSON) | jq -r '.app_status.state')"; \
+		if [ "$$APP_STATE" = "RUNNING" ]; then \
+			exit 0; \
+		fi; \
+		ATTEMPT=$$((ATTEMPT + 1)); \
+		sleep "$(APP_START_POLL_SECONDS)"; \
+	done; \
+	printf "App $(APP_NAME) is not RUNNING (state=%s)\n" "$$APP_STATE" >&2; \
+	exit 1
+
+deploy: ensure-running
+	@APP_JSON="$$($(APP_GET_JSON))"; \
+	APP_SRC="$$(printf "%s" "$$APP_JSON" | jq -r '.default_source_code_path')"; \
 	if [ -z "$$APP_SRC" ] || [ "$$APP_SRC" = "null" ]; then \
 		printf "Could not resolve default_source_code_path for $(APP_NAME)\n" >&2; \
 		exit 1; \
 	fi; \
-	databricks apps start "$(APP_NAME)" --profile "$(PROFILE)" >/dev/null 2>&1 || true; \
-	APP_STATE=""; \
-	for _ in $$(seq 1 30); do \
-		APP_STATE="$$(databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json | jq -r '.app_status.state')"; \
-		if [ "$$APP_STATE" = "RUNNING" ]; then \
-			break; \
-		fi; \
-		sleep 2; \
-	done; \
-	if [ "$$APP_STATE" != "RUNNING" ]; then \
-		printf "App $(APP_NAME) is not RUNNING (state=%s)\n" "$$APP_STATE" >&2; \
-		exit 1; \
-	fi; \
 	databricks apps deploy "$(APP_NAME)" --profile "$(PROFILE)" --source-code-path "$$APP_SRC" --mode SNAPSHOT
 
-redeploy-dev: build-app-source validate-dev import-dev deploy-dev health-dev
+redeploy: build-app-source validate import deploy health
 
-health-dev:
-	@APP_JSON="$$(databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json)"; \
+health:
+	@APP_JSON="$$($(APP_GET_JSON))"; \
 	DEPLOY_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.active_deployment.status.state')"; \
 	APP_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.app_status.state')"; \
 	COMPUTE_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.compute_status.state')"; \
@@ -79,8 +90,8 @@ health-dev:
 		exit 1; \
 	fi
 
-smoke-dev:
-	@APP_JSON="$$(databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json)"; \
+smoke:
+	@APP_JSON="$$($(APP_GET_JSON))"; \
 	APP_URL="$$(printf "%s" "$$APP_JSON" | jq -r '.url')"; \
 	APP_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.app_status.state')"; \
 	if [ -z "$$APP_URL" ] || [ "$$APP_URL" = "null" ]; then \
@@ -117,8 +128,8 @@ smoke-dev:
 	rm -f "$$INV_TMP"; \
 	printf "Smoke checks passed for $(APP_NAME)\n"
 
-status-dev:
-	databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json
+status:
+	$(APP_GET_JSON)
 
-logs-dev:
+logs:
 	databricks apps logs "$(APP_NAME)" --tail-lines 120 --profile "$(PROFILE)"

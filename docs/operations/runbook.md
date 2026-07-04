@@ -22,11 +22,12 @@ This document covers deployment and operations only. High-level system context i
 Use this default release sequence:
 
 1. Pre-deployment checklist
-2. Prepare wheel-first app source
+2. Prepare app-source payload (wheel + React UI)
 3. Validate bundle
 4. Deploy bundle
-5. Restart app runtime (`bundle run`)
-6. Execute post-deploy verification
+5. Import prepared app source to workspace path
+6. Deploy app from workspace source path
+7. Execute post-deploy verification
 
 For target values:
 
@@ -71,7 +72,7 @@ Final pre-release checks:
 
 ### Standard Deployment
 
-#### 0) Prepare wheel-first app source
+#### 0) Prepare app-source payload (wheel + React UI)
 
 ```bash
 uv run prepare-app-source
@@ -97,10 +98,17 @@ databricks bundle validate -t prod --profile prd
 databricks bundle deploy -t TARGET --profile PROFILE
 ```
 
-#### 3) Start or restart runtime
+#### 3) Import prepared app source
 
 ```bash
-databricks bundle run multiagent-app --target TARGET
+APP_SRC=$(databricks apps get APP_NAME --output json --profile PROFILE | jq -r '.default_source_code_path')
+databricks workspace import-dir .databricks_app_source "$APP_SRC" --overwrite --profile PROFILE
+```
+
+#### 4) Deploy app from imported source
+
+```bash
+databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
 ### Fallback Deployment Procedure
@@ -122,11 +130,11 @@ APP_SRC="$(databricks apps get "$APP_NAME" --profile "$PROFILE" --output json | 
 databricks apps deploy "$APP_NAME" --profile "$PROFILE" --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
-### Databricks App Source Caveat (Bundle Run)
+### Databricks App Source Caveat
 
-In some environments, `databricks bundle run multiagent-app --target TARGET` may trigger an app deployment from a reduced source payload (for example, only bundle resource files), which can fail startup with errors such as missing command or missing modules.
+In some environments, relying on bundle runtime commands may use a reduced source payload (for example, only bundle resource files), which can fail startup with errors such as missing command or missing modules.
 
-When this occurs, use the explicit app-source deployment path below to deploy the wheel-first payload:
+When this occurs, use the explicit app-source deployment path below to deploy the app-source payload:
 
 ```bash
 uv run prepare-app-source
@@ -146,18 +154,29 @@ Expected health fields:
 - `active_deployment.status.state = SUCCEEDED`
 - `app_status.state = RUNNING`
 
-### Bitbucket Pipeline Alignment (Wheel-First)
+### GitHub Actions Pipeline Alignment (App-Source Payload)
 
-The Bitbucket deployment pipeline is aligned to this runbook and uses wheel-first delivery:
+The GitHub Actions deployment pipeline is aligned to this runbook and uses Makefile-driven app-source payload delivery (wheel + React UI):
 
-1. Build wheel: `uv build --wheel`
-2. Prepare app source: `uv run prepare-app-source`
-3. Validate/deploy bundle.
-4. Sync and deploy app source from `default_source_code_path` using `databricks apps deploy --mode SNAPSHOT`.
-5. Run app via `databricks bundle run multiagent-app --target "$DAB_TARGET"`.
-6. Final health gate checks `active_deployment.status.state == SUCCEEDED` and `app_status.state == RUNNING`.
+1. Build wheel and React UI payload: `make build-app-source`.
+2. Validate bundle by target: `make validate TARGET="$DAB_TARGET"`.
+3. Attempt bundle deploy: `make bundle-deploy TARGET="$DAB_TARGET"`.
+4. Import prepared app source to workspace: `make import TARGET="$DAB_TARGET" APP_NAME="$APP_NAME"`.
+5. Deploy app from workspace source path: `make deploy TARGET="$DAB_TARGET" APP_NAME="$APP_NAME"`.
+6. Final health and smoke gates: `make health ...` and `make smoke ...`.
 
 This keeps repository state clean (no committed wheel binaries) while ensuring each CI run deploys a fresh wheel artifact.
+
+Workflow file:
+
+- `.github/workflows/databricks-cicd.yml`
+
+Required GitHub secrets by environment suffix:
+
+- `DATABRICKS_HOST_DEV`, `DATABRICKS_CLIENT_ID_DEV`, `DATABRICKS_CLIENT_SECRET_DEV`
+- `DATABRICKS_HOST_QA`, `DATABRICKS_CLIENT_ID_QA`, `DATABRICKS_CLIENT_SECRET_QA`
+- `DATABRICKS_HOST_STG`, `DATABRICKS_CLIENT_ID_STG`, `DATABRICKS_CLIENT_SECRET_STG`
+- `DATABRICKS_HOST_PROD`, `DATABRICKS_CLIENT_ID_PROD`, `DATABRICKS_CLIENT_SECRET_PROD`
 
 ### Existing App Conflict
 
@@ -291,7 +310,7 @@ Escalate immediately if issue affects multiple targets or production user traffi
 
 - Missing CI secrets for environment.
 - Terraform registry unreachable.
-- Deploy completed but runtime not restarted.
+- Deploy completed but app-source import/deploy path was skipped.
 - Missing Unity Catalog grants for Genie query paths.
 - OBO flow missing forwarded token (`x-forwarded-access-token`) for tools configured with `auth_mode: obo`.
 - User identity has insufficient data permissions even when app identity has access.
@@ -307,7 +326,9 @@ Escalate immediately if issue affects multiple targets or production user traffi
 
 ```bash
 databricks bundle deploy -t TARGET --profile PROFILE
-databricks bundle run multiagent-app --target TARGET
+APP_SRC=$(databricks apps get APP_NAME --output json --profile PROFILE | jq -r '.default_source_code_path')
+databricks workspace import-dir .databricks_app_source "$APP_SRC" --overwrite --profile PROFILE
+databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
 Deploy a known good revision.
@@ -331,7 +352,7 @@ After:
 ## Operating Guidelines
 
 1. Always run `bundle validate` before `bundle deploy`.
-2. Always run `bundle run` after `bundle deploy`.
+2. Always import and deploy `.databricks_app_source` after `bundle deploy`.
 3. Always include explicit `--profile` in Databricks CLI commands.
 4. Prefer bind over delete when resolving existing-app conflicts.
 5. Use fallback deploy only when standard deploy is blocked.

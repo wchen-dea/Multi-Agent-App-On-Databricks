@@ -100,7 +100,7 @@ Primary implementation:
 Primary implementation:
 
 - backend/evaluate_agent.py
-- bitbucket-pipelines.yml
+- .github/workflows/databricks-cicd.yml
 
 ## 8. Deployment and Environment Specification
 

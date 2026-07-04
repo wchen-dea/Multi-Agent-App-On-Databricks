@@ -1,0 +1,194 @@
+name: Databricks App CI/CD
+
+on:
+  pull_request:
+    branches: [dev, qa, stg, prod]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [dev, qa, stg, prod]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Deployment target (dev|qa|stg|prod)"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - stg
+          - prod
+
+concurrency:
+  group: databricks-cicd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-ci:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y curl unzip jq make
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Run agent quality evaluation
+        env:
+          EVAL_MIN_TOOL_CALL_ACCURACY: "${{ vars.EVAL_MIN_TOOL_CALL_ACCURACY || '0.80' }}"
+          EVAL_MIN_AUTH_CORRECTNESS: "${{ vars.EVAL_MIN_AUTH_CORRECTNESS || '0.90' }}"
+          EVAL_MIN_SAFETY: "${{ vars.EVAL_MIN_SAFETY || '0.95' }}"
+          EVAL_MIN_GROUNDEDNESS: "${{ vars.EVAL_MIN_GROUNDEDNESS || '0.80' }}"
+          EVAL_REQUIRE_ALL_KPIS: "${{ vars.EVAL_REQUIRE_ALL_KPIS || 'true' }}"
+        run: uv run agent-evaluate
+
+      - name: Build app-source payload
+        run: make build-app-source
+
+      - name: Validate bundle for PR base target
+        env:
+          TARGET: ${{ github.base_ref }}
+        run: make validate TARGET="$TARGET"
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y curl unzip jq make
+
+      - name: Install Databricks CLI
+        run: curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Resolve target and Databricks credentials
+        env:
+          INPUT_TARGET: ${{ github.event.inputs.target }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          DATABRICKS_HOST_DEV: ${{ secrets.DATABRICKS_HOST_DEV }}
+          DATABRICKS_CLIENT_ID_DEV: ${{ secrets.DATABRICKS_CLIENT_ID_DEV }}
+          DATABRICKS_CLIENT_SECRET_DEV: ${{ secrets.DATABRICKS_CLIENT_SECRET_DEV }}
+          DATABRICKS_HOST_QA: ${{ secrets.DATABRICKS_HOST_QA }}
+          DATABRICKS_CLIENT_ID_QA: ${{ secrets.DATABRICKS_CLIENT_ID_QA }}
+          DATABRICKS_CLIENT_SECRET_QA: ${{ secrets.DATABRICKS_CLIENT_SECRET_QA }}
+          DATABRICKS_HOST_STG: ${{ secrets.DATABRICKS_HOST_STG }}
+          DATABRICKS_CLIENT_ID_STG: ${{ secrets.DATABRICKS_CLIENT_ID_STG }}
+          DATABRICKS_CLIENT_SECRET_STG: ${{ secrets.DATABRICKS_CLIENT_SECRET_STG }}
+          DATABRICKS_HOST_PROD: ${{ secrets.DATABRICKS_HOST_PROD }}
+          DATABRICKS_CLIENT_ID_PROD: ${{ secrets.DATABRICKS_CLIENT_ID_PROD }}
+          DATABRICKS_CLIENT_SECRET_PROD: ${{ secrets.DATABRICKS_CLIENT_SECRET_PROD }}
+        run: |
+          set -euo pipefail
+
+          TARGET="${INPUT_TARGET:-$GH_REF_NAME}"
+          case "$TARGET" in
+            dev|qa|stg|prod) ;;
+            *)
+              echo "Unsupported target: $TARGET" >&2
+              exit 1
+              ;;
+          esac
+
+          TARGET_UPPER="$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')"
+
+          for key in DATABRICKS_HOST DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET; do
+            eval "value=\${${key}_${TARGET_UPPER}:-}"
+            if [ -z "$value" ]; then
+              echo "Missing required secret: ${key}_${TARGET_UPPER}" >&2
+              exit 1
+            fi
+            echo "${key}=$value" >> "$GITHUB_ENV"
+          done
+
+          echo "TARGET=$TARGET" >> "$GITHUB_ENV"
+          echo "APP_NAME=multiagent-app-$TARGET" >> "$GITHUB_ENV"
+          echo "DATABRICKS_AUTH_TYPE=oauth-m2m" >> "$GITHUB_ENV"
+          echo "$HOME/.databricks/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Databricks CLI
+        run: databricks --version
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Run agent quality evaluation
+        env:
+          EVAL_MIN_TOOL_CALL_ACCURACY: "${{ vars.EVAL_MIN_TOOL_CALL_ACCURACY || '0.80' }}"
+          EVAL_MIN_AUTH_CORRECTNESS: "${{ vars.EVAL_MIN_AUTH_CORRECTNESS || '0.90' }}"
+          EVAL_MIN_SAFETY: "${{ vars.EVAL_MIN_SAFETY || '0.95' }}"
+          EVAL_MIN_GROUNDEDNESS: "${{ vars.EVAL_MIN_GROUNDEDNESS || '0.80' }}"
+          EVAL_REQUIRE_ALL_KPIS: "${{ vars.EVAL_REQUIRE_ALL_KPIS || 'true' }}"
+        run: uv run agent-evaluate
+
+      - name: Build app-source payload
+        run: make build-app-source
+
+      - name: Validate bundle
+        run: make validate TARGET="$TARGET"
+
+      - name: Try bundle deploy (non-blocking)
+        run: |
+          if ! make bundle-deploy TARGET="$TARGET"; then
+            echo "bundle deploy failed (likely transient Terraform provider connectivity)."
+            echo "Continuing with app-source payload import + apps deploy fallback."
+          fi
+
+      - name: Import app-source and deploy
+        run: |
+          set -euo pipefail
+          if ! make import TARGET="$TARGET" APP_NAME="$APP_NAME"; then
+            echo "import failed for app-source payload" >&2
+            exit 1
+          fi
+
+          if ! make deploy TARGET="$TARGET" APP_NAME="$APP_NAME"; then
+            echo "apps deploy failed; retrying once after ensure-running"
+            make ensure-running TARGET="$TARGET" APP_NAME="$APP_NAME"
+            make deploy TARGET="$TARGET" APP_NAME="$APP_NAME"
+          fi
+
+      - name: Health check
+        run: make health TARGET="$TARGET" APP_NAME="$APP_NAME"
+
+      - name: Smoke check
+        run: make smoke TARGET="$TARGET" APP_NAME="$APP_NAME"
