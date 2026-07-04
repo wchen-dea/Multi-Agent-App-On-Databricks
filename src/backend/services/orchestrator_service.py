@@ -234,7 +234,9 @@ def create_orchestrator_agent(
             "appropriate tool:\n"
             + "\n".join(tool_lines)
             + "\nIf unsure, ask the user for clarification."
-            + "\nFor governed or sensitive answers, include citations or explicit sources."
+            + "\nFor any answer grounded in a tool marked evidence=true, include evidence in the final answer."
+            + "\nUse either inline citations like `[1]` or end with a `Source:` line naming the tool and freshness SLA."
+            + "\nDo not give a governed final answer without that evidence line."
         )
     else:
         instructions = (

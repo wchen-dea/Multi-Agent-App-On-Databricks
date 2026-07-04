@@ -16,6 +16,21 @@ def parse_token_command(
     return ("set", token)
 
 
+def parse_persona_command(
+    text: str,
+    set_persona_command: str,
+    clear_persona_command: str,
+) -> tuple[str | None, str | None]:
+    """Parse persona management commands from user input."""
+    stripped = text.strip()
+    if stripped == clear_persona_command:
+        return ("clear", None)
+    if not stripped.startswith(f"{set_persona_command} "):
+        return (None, None)
+    persona = stripped[len(set_persona_command) :].strip()
+    return ("set", persona)
+
+
 def mask_token(token: str) -> str:
     """Mask a token value for safe user-visible confirmation text."""
     cleaned = token.strip()

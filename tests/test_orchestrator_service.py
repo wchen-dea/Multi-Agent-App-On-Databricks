@@ -6,6 +6,7 @@ from backend.services.orchestrator_service import (
     OrchestratorDependencies,
     build_mcp_servers,
     build_subagent_tools,
+    create_orchestrator_agent,
 )
 
 
@@ -84,3 +85,26 @@ def test_build_mcp_servers_uses_factory_and_tracks_obo_unavailable():
     assert created[0]["name"] == "Genie:sales_app"
     assert "space-app" in created[0]["url"]
     assert unavailable == ["Genie MCP tools (sales_obo) requires user authorization (OBO)"]
+
+
+def test_create_orchestrator_agent_requires_explicit_evidence_format_for_governed_tools():
+    subagents = [
+        SubagentConfig(
+            name="sales_agent",
+            kind="genie",
+            auth_mode="obo",
+            data_classification="confidential",
+            owner="sales-analytics",
+            freshness_sla="15m",
+            allowed_personas=("manager",),
+            requires_evidence=True,
+            space_id="space-1",
+            description="sales genie",
+        )
+    ]
+
+    agent = create_orchestrator_agent("test-model", subagents, [], [])
+
+    assert "evidence=true" in agent.instructions
+    assert "Source:" in agent.instructions
+    assert "freshness SLA" in agent.instructions

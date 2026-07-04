@@ -9,6 +9,7 @@ targets:
     variables:
       app_name: multiagent-app-dev
       mlflow_experiment_id: "2041388166228723"
+      subagents_config_path: "/app/python/source_code/.venv/lib/python3.11/site-packages/backend/domain/subagents.dev.json"
       genie_space_id: "01f159f5d91419549020e3609add391c"
       store_manager_genie_space_id: ""
       executive_genie_space_id: ""
@@ -33,4 +34,8 @@ targets:
           - name: ai_search_endpoint
             serving_endpoint:
               name: ${var.ai_search_endpoint_name}
+              permission: CAN_QUERY
+          - name: knowledge_assistant_product_endpoint
+            serving_endpoint:
+              name: knowledge_assistant
               permission: CAN_QUERY

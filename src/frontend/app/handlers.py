@@ -12,13 +12,21 @@ from frontend.app.config import get_settings
 from frontend.app.session import (
     get_forwarded_token,
     get_history,
+    get_persona,
     init_session,
+    persona_status_line,
     set_forwarded_token,
     set_history,
+    set_persona,
     token_status_line,
 )
 from frontend.app.stream_events import update_stream_hints
-from frontend.app.ui_content import source_badge_line, starter_prompts, welcome_message
+from frontend.app.ui_content import (
+    session_status_badge_line,
+    source_badge_line,
+    starter_prompts,
+    welcome_message,
+)
 
 logger = logging.getLogger(__name__)
 SETTINGS = get_settings()
@@ -27,11 +35,15 @@ SETTINGS = get_settings()
 def _build_payload(history: list[dict[str, Any]], user_message: str) -> dict[str, Any]:
     """Build backend request payload with conversation context."""
     history.append({"role": "user", "content": user_message})
-    return {
+    payload: dict[str, Any] = {
         "input": history,
         "stream": True,
         "context": {"conversation_id": cl.context.session.id},
     }
+    persona = get_persona()
+    if persona:
+        payload["custom_inputs"] = {"persona": persona}
+    return payload
 
 
 def _build_headers() -> dict[str, str]:
@@ -45,7 +57,11 @@ def _build_headers() -> dict[str, str]:
 
 async def _set_error(message: cl.Message, content: str) -> None:
     """Update an in-flight Chainlit response message with an error."""
-    message.content = content
+    status_line = session_status_badge_line(
+        persona=get_persona(),
+        token_forwarding_enabled=bool(get_forwarded_token()),
+    )
+    message.content = f"{content}{status_line}"
     await message.update()
 
 
@@ -70,6 +86,9 @@ async def on_chat_start() -> None:
             chat_greeting=SETTINGS.chat_greeting,
             set_token_command=SETTINGS.set_token_command,
             clear_token_command=SETTINGS.clear_token_command,
+            set_persona_command=SETTINGS.set_persona_command,
+            clear_persona_command=SETTINGS.clear_persona_command,
+            allowed_personas=SETTINGS.allowed_personas,
         )
     ).send()
 
@@ -82,12 +101,21 @@ async def on_message(message: cl.Message) -> None:
         SETTINGS.set_token_command,
         SETTINGS.clear_token_command,
     )
+
+    from frontend.app.commands import parse_persona_command
+
+    persona_command, persona = parse_persona_command(
+        message.content,
+        SETTINGS.set_persona_command,
+        SETTINGS.clear_persona_command,
+    )
     if command == "clear":
         set_forwarded_token(None)
         await cl.Message(
             content=(
                 "Forwarded user token removed for this chat session.\n"
-                f"{token_status_line()}"
+                f"{token_status_line()}\n"
+                f"{persona_status_line()}"
             )
         ).send()
         return
@@ -107,7 +135,46 @@ async def on_message(message: cl.Message) -> None:
                 "Forwarded user token saved for this chat session.\n"
                 f"Token: `{mask_token(token)}`\n"
                 f"Subsequent requests will include {SETTINGS.forwarded_access_token_header}.\n"
-                f"{token_status_line()}"
+                f"{token_status_line()}\n"
+                f"{persona_status_line()}"
+            )
+        ).send()
+        return
+
+    if persona_command == "clear":
+        set_persona(None)
+        await cl.Message(
+            content=(
+                "Persona cleared for this chat session.\n"
+                f"{persona_status_line()}"
+            )
+        ).send()
+        return
+
+    if persona_command == "set":
+        if not persona:
+            await cl.Message(
+                content=(
+                    "Persona command format: "
+                    f"{SETTINGS.set_persona_command} <persona>\n"
+                    f"Accepted personas: {', '.join(SETTINGS.allowed_personas)}"
+                )
+            ).send()
+            return
+        normalized_persona = persona.lower()
+        if normalized_persona not in set(SETTINGS.allowed_personas):
+            await cl.Message(
+                content=(
+                    f"Invalid persona: `{persona}`.\n"
+                    f"Accepted personas: {', '.join(SETTINGS.allowed_personas)}"
+                )
+            ).send()
+            return
+        set_persona(normalized_persona)
+        await cl.Message(
+            content=(
+                "Persona saved for this chat session.\n"
+                f"{persona_status_line()}"
             )
         ).send()
         return
@@ -122,6 +189,7 @@ async def on_message(message: cl.Message) -> None:
     full_text_parts: list[str] = []
     source_categories: set[str] = set()
     source_tools: set[str] = set()
+    streamed_text = False
 
     try:
         async with httpx.AsyncClient(timeout=SETTINGS.timeout_seconds) as client:
@@ -148,6 +216,7 @@ async def on_message(message: cl.Message) -> None:
                     delta = update_stream_hints(event, source_categories, source_tools)
 
                     if delta:
+                        streamed_text = True
                         await response_msg.stream_token(delta)
                         full_text_parts.append(delta)
 
@@ -176,10 +245,28 @@ async def on_message(message: cl.Message) -> None:
         )
         return
 
+    if not streamed_text:
+        await _set_error(
+            response_msg,
+            (
+                "The backend ended the stream without returning visible content. "
+                "This often means the response was blocked before it could be shown, "
+                "for example by an `evidence_required` guardrail."
+            ),
+        )
+        return
+
     badge_line = source_badge_line(source_categories, source_tools)
     if badge_line:
         await response_msg.stream_token(badge_line)
         full_text_parts.append(badge_line)
+
+    status_line = session_status_badge_line(
+        persona=get_persona(),
+        token_forwarding_enabled=bool(get_forwarded_token()),
+    )
+    await response_msg.stream_token(status_line)
+    full_text_parts.append(status_line)
 
     await response_msg.update()
 

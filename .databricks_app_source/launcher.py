@@ -29,6 +29,7 @@ def _install_wheel(wheel_path: Path) -> None:
             "install",
             "--no-cache-dir",
             "--upgrade",
+            "--force-reinstall",
             str(wheel_path),
         ]
     )

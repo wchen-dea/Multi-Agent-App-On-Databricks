@@ -1,0 +1,118 @@
+from backend.api.handlers import (
+    _append_source_to_output_items,
+    _event_has_tool_activity,
+    _guardrail_scope_subagents,
+    _governed_source_suffix_with_fallback,
+    _governed_source_suffix,
+    _guardrail_block_message,
+    _used_subagents_from_payloads,
+)
+from backend.domain.subagent_config import SubagentConfig
+
+
+def test_guardrail_block_message_mentions_reason_and_remediation():
+    message = _guardrail_block_message(("evidence_required",))
+
+    assert "evidence_required" in message
+    assert "[1]" in message
+    assert "Source:" in message
+
+
+def test_governed_source_suffix_uses_detected_tool_metadata():
+    sales_agent = SubagentConfig(
+        name="sales_agent",
+        kind="genie",
+        auth_mode="obo",
+        data_classification="confidential",
+        owner="sales-analytics",
+        freshness_sla="15m",
+        allowed_personas=("manager",),
+        requires_evidence=True,
+        space_id="space-1",
+        description="sales",
+    )
+
+    used = _used_subagents_from_payloads(
+        [{"type": "response.output_item.added", "item": {"name": "query_sales_agent"}}],
+        [sales_agent],
+    )
+    suffix = _governed_source_suffix(used)
+
+    assert used == [sales_agent]
+    assert suffix.startswith("\n\nSource: ")
+    assert "sales_agent" in suffix
+    assert "Genie MCP" in suffix
+    assert "15m" in suffix
+
+
+def test_append_source_to_output_items_updates_last_assistant_message():
+    output_items = [
+        {"role": "user", "content": "How are sales?"},
+        {"role": "assistant", "content": "Revenue is up 4%."},
+    ]
+
+    updated = _append_source_to_output_items(output_items, "\n\nSource: sales_agent")
+
+    assert updated[-1]["content"].endswith("Source: sales_agent")
+
+
+def test_governed_source_suffix_fallback_for_tool_activity_without_named_subagent():
+    sales_agent = SubagentConfig(
+        name="sales_agent",
+        kind="genie",
+        auth_mode="obo",
+        data_classification="confidential",
+        owner="sales-analytics",
+        freshness_sla="15m",
+        allowed_personas=("manager",),
+        requires_evidence=True,
+        space_id="space-1",
+        description="sales",
+    )
+
+    suffix = _governed_source_suffix_with_fallback(
+        [
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "type": "tool_call_output_item",
+                },
+            }
+        ],
+        [sales_agent],
+    )
+
+    assert suffix == "\n\nSource: tool-backed governed response."
+
+
+def test_event_has_tool_activity_detects_generic_tool_event_shapes():
+    payloads = [
+        {
+            "type": "response.some_mcp_event",
+            "item": {"type": "mcp_call"},
+        }
+    ]
+
+    assert _event_has_tool_activity(payloads) is True
+
+
+def test_guardrail_scope_subagents_empty_when_no_tool_activity():
+    sales_agent = SubagentConfig(
+        name="sales_agent",
+        kind="genie",
+        auth_mode="obo",
+        data_classification="confidential",
+        owner="sales-analytics",
+        freshness_sla="15m",
+        allowed_personas=("manager",),
+        requires_evidence=True,
+        space_id="space-1",
+        description="sales",
+    )
+
+    scoped = _guardrail_scope_subagents(
+        [{"type": "response.output_text.delta", "delta": "Draft answer"}],
+        [sales_agent],
+    )
+
+    assert scoped == []

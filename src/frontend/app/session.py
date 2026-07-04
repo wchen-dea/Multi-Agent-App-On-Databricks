@@ -6,12 +6,14 @@ import chainlit as cl
 
 SESSION_HISTORY_KEY = "history"
 SESSION_FORWARDED_TOKEN_KEY = "forwarded_access_token"
+SESSION_PERSONA_KEY = "persona"
 
 
 def init_session() -> None:
     """Initialize user session defaults for a new chat."""
     cl.user_session.set(SESSION_HISTORY_KEY, [])
     cl.user_session.set(SESSION_FORWARDED_TOKEN_KEY, None)
+    cl.user_session.set(SESSION_PERSONA_KEY, None)
 
 
 def get_history() -> list[dict[str, Any]]:
@@ -42,3 +44,24 @@ def token_status_line() -> str:
     if get_forwarded_token():
         return "Auth mode for this chat: Hybrid (app + forwarded user OBO token)."
     return "Auth mode for this chat: App identity only."
+
+
+def get_persona() -> str | None:
+    """Return active persona for this chat session if set."""
+    persona = cl.user_session.get(SESSION_PERSONA_KEY)
+    if isinstance(persona, str) and persona.strip():
+        return persona.strip().lower()
+    return None
+
+
+def set_persona(persona: str | None) -> None:
+    """Set active persona for this chat session."""
+    cl.user_session.set(SESSION_PERSONA_KEY, persona)
+
+
+def persona_status_line() -> str:
+    """Return a user-facing summary of active session persona."""
+    persona = get_persona()
+    if persona:
+        return f"Persona for this chat: `{persona}`."
+    return "Persona for this chat: not set."

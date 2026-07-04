@@ -1,0 +1,26 @@
+[
+  {
+    "name": "sales_agent",
+    "type": "genie",
+    "auth_mode": "obo",
+    "data_classification": "confidential",
+    "owner": "sales-analytics",
+    "freshness_sla": "15m",
+    "allowed_personas": ["analyst", "operator", "manager"],
+    "requires_evidence": true,
+    "space_id": "01f159f5d91419549020e3609add391c",
+    "description": "Sales agent backed by a Genie space for structured data analysis. Use this for sales metrics, store performance, and operational reporting."
+  },
+  {
+    "name": "knowledge_assistant_product",
+    "type": "serving_endpoint",
+    "auth_mode": "app",
+    "data_classification": "internal",
+    "owner": "platform-docs",
+    "freshness_sla": "24h",
+    "allowed_personas": ["analyst", "operator", "manager", "engineer"],
+    "requires_evidence": false,
+    "endpoint": "knowledge_assistant",
+    "description": "Query the knowledge_assistant endpoint on Model Serving. Use this for product-specific knowledge and policy lookups. The endpoint must have task type agent/v1/responses."
+  }
+]
