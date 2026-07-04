@@ -7,6 +7,8 @@ TARGET ?= dev
 APP_NAME ?= multiagent-app-$(TARGET)
 APP_START_MAX_ATTEMPTS ?= 30
 APP_START_POLL_SECONDS ?= 2
+APP_DEPLOY_MAX_ATTEMPTS ?= 60
+APP_DEPLOY_POLL_SECONDS ?= 2
 
 APP_GET_JSON = databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json
 
@@ -53,12 +55,15 @@ import: build-app-source
 	databricks workspace import-dir .databricks_app_source "$$APP_SRC" --overwrite --profile "$(PROFILE)"
 
 ensure-running:
-	@databricks apps start "$(APP_NAME)" --profile "$(PROFILE)" >/dev/null 2>&1 || true; \
+	@printf "Ensuring app %s is RUNNING...\n" "$(APP_NAME)"; \
+	databricks apps start "$(APP_NAME)" --profile "$(PROFILE)" >/dev/null 2>&1 || true; \
 	APP_STATE=""; \
 	ATTEMPT=0; \
 	while [ $$ATTEMPT -lt "$(APP_START_MAX_ATTEMPTS)" ]; do \
 		APP_STATE="$$($(APP_GET_JSON) | jq -r '.app_status.state')"; \
+		printf "  start-check attempt=%s/%s state=%s\n" "$$((ATTEMPT + 1))" "$(APP_START_MAX_ATTEMPTS)" "$$APP_STATE"; \
 		if [ "$$APP_STATE" = "RUNNING" ]; then \
+			printf "App %s is RUNNING.\n" "$(APP_NAME)"; \
 			exit 0; \
 		fi; \
 		ATTEMPT=$$((ATTEMPT + 1)); \
@@ -80,10 +85,24 @@ stop:
 deploy: ensure-running
 	@APP_JSON="$$($(APP_GET_JSON))"; \
 	APP_SRC="$$(printf "%s" "$$APP_JSON" | jq -r '.default_source_code_path')"; \
+	DEPLOY_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.active_deployment.status.state // "NONE"')"; \
+	ATTEMPT=0; \
 	if [ -z "$$APP_SRC" ] || [ "$$APP_SRC" = "null" ]; then \
 		printf "Could not resolve default_source_code_path for $(APP_NAME)\n" >&2; \
 		exit 1; \
 	fi; \
+	while [ "$$DEPLOY_STATE" = "IN_PROGRESS" ] && [ $$ATTEMPT -lt "$(APP_DEPLOY_MAX_ATTEMPTS)" ]; do \
+		printf "Waiting for active deployment lock to clear: attempt=%s/%s state=%s\n" "$$((ATTEMPT + 1))" "$(APP_DEPLOY_MAX_ATTEMPTS)" "$$DEPLOY_STATE"; \
+		ATTEMPT=$$((ATTEMPT + 1)); \
+		sleep "$(APP_DEPLOY_POLL_SECONDS)"; \
+		APP_JSON="$$($(APP_GET_JSON))"; \
+		DEPLOY_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.active_deployment.status.state // "NONE"')"; \
+	done; \
+	if [ "$$DEPLOY_STATE" = "IN_PROGRESS" ]; then \
+		printf "Active deployment still in progress for %s after %s attempts.\n" "$(APP_NAME)" "$(APP_DEPLOY_MAX_ATTEMPTS)" >&2; \
+		exit 1; \
+	fi; \
+	printf "Deploying app %s from source path: %s\n" "$(APP_NAME)" "$$APP_SRC"; \
 	databricks apps deploy "$(APP_NAME)" --profile "$(PROFILE)" --source-code-path "$$APP_SRC" --mode SNAPSHOT
 
 redeploy: build-app-source validate import deploy health

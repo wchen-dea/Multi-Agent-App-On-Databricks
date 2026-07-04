@@ -30,6 +30,7 @@ def _install_wheel(wheel_path: Path) -> None:
             "--no-cache-dir",
             "--upgrade",
             "--force-reinstall",
+            "--no-warn-conflicts",
             str(wheel_path),
         ]
     )

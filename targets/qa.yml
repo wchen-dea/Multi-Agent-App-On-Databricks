@@ -68,3 +68,7 @@ targets:
             serving_endpoint:
               name: ${var.ai_search_endpoint_name}
               permission: CAN_QUERY
+          - name: knowledge_assistant_product_ep
+            serving_endpoint:
+              name: ${var.knowledge_assistant_endpoint_name}
+              permission: CAN_QUERY

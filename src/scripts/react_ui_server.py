@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 from typing import AsyncGenerator
@@ -21,15 +22,20 @@ BACKEND_PROXY_URL = os.environ.get("FRONTEND_BACKEND_PROXY", "http://localhost:8
 REQUEST_HEADER_SKIP = {"host", "content-length", "connection", "accept-encoding"}
 RESPONSE_HEADER_ALLOW = {"content-type", "cache-control", "x-request-id", "date"}
 
-app = FastAPI(title="React UI Proxy Server")
-
-
-@app.on_event("startup")
 def _validate_dist() -> None:
     if not REACT_UI_DIST_DIR.exists():
         raise RuntimeError(
             f"React UI dist not found at {REACT_UI_DIST_DIR}. Run `uv run prepare-app-source` first."
         )
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    _validate_dist()
+    yield
+
+
+app = FastAPI(title="React UI Proxy Server", lifespan=_lifespan)
 
 
 @app.get("/health")
