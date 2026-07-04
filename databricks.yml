@@ -43,6 +43,9 @@ variables:
   serving_endpoint_name:
     description: Primary serving endpoint name for the current environment
     default: ""
+  ai_search_endpoint_name:
+    description: AI search serving endpoint name for the current environment
+    default: ""
   target_app_name:
     description: Target Databricks app name granted CAN_USE for the current environment
     default: ""

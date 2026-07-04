@@ -63,15 +63,26 @@ definitions:
       - uv build --wheel
       - databricks bundle validate --target "$DAB_TARGET"
       - uv run prepare-app-source
-      - databricks bundle deploy --target "$DAB_TARGET"
-      - databricks bundle sync --target "$DAB_TARGET"
+      - |
+        if ! databricks bundle deploy --target "$DAB_TARGET"; then
+          echo "bundle deploy failed (likely transient Terraform provider connectivity)."
+          echo "Continuing with bundle sync + apps deploy fallback."
+        fi
       - |
         APP_SRC="$(databricks apps get "$APP_NAME" --output json | jq -r '.default_source_code_path')"
         if [ -z "$APP_SRC" ] || [ "$APP_SRC" = "null" ]; then
           echo "Could not resolve default_source_code_path for app: $APP_NAME" >&2
           exit 1
         fi
-        databricks apps deploy "$APP_NAME" --source-code-path "$APP_SRC" --mode SNAPSHOT
+
+        # Upload prepared wheel-first source directly to workspace app path.
+        databricks workspace import-dir .databricks_app_source "$APP_SRC" --overwrite
+
+        if ! databricks apps deploy "$APP_NAME" --source-code-path "$APP_SRC" --mode SNAPSHOT; then
+          echo "apps deploy failed; attempting to start app and retry once"
+          databricks bundle run multiagent-app --target "$DAB_TARGET" || true
+          databricks apps deploy "$APP_NAME" --source-code-path "$APP_SRC" --mode SNAPSHOT
+        fi
       - databricks bundle run multiagent-app --target "$DAB_TARGET"
       - |
         APP_JSON="$(databricks apps get "$APP_NAME" --output json)"

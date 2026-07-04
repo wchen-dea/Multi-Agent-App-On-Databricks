@@ -13,6 +13,7 @@ targets:
       store_manager_genie_space_id: ""
       executive_genie_space_id: ""
       supply_chain_genie_space_id: ""
+      ai_search_endpoint_name: "kc-ai-assistant-v1"
       message_bus_backend: structured_logging
       message_bus_topic: agent-lifecycle-events
       uc_audit_warehouse_id: "unused-for-structured-logging"
@@ -29,3 +30,7 @@ targets:
               name: Genie Space
               space_id: ${var.genie_space_id}
               permission: CAN_RUN
+          - name: ai_search_endpoint
+            serving_endpoint:
+              name: ${var.ai_search_endpoint_name}
+              permission: CAN_QUERY

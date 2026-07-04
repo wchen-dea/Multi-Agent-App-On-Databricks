@@ -113,6 +113,15 @@ APP_SRC=$(databricks apps get APP_NAME --output json --profile PROFILE | jq -r '
 databricks apps deploy APP_NAME --profile PROFILE --source-code-path "$APP_SRC" --mode SNAPSHOT
 ```
 
+Concrete command form (dev example):
+
+```bash
+APP_NAME="multiagent-app-dev"
+PROFILE="DEFAULT"
+APP_SRC="$(databricks apps get "$APP_NAME" --profile "$PROFILE" --output json | jq -r '.default_source_code_path')"
+databricks apps deploy "$APP_NAME" --profile "$PROFILE" --source-code-path "$APP_SRC" --mode SNAPSHOT
+```
+
 ### Databricks App Source Caveat (Bundle Run)
 
 In some environments, `databricks bundle run multiagent-app --target TARGET` may trigger an app deployment from a reduced source payload (for example, only bundle resource files), which can fail startup with errors such as missing command or missing modules.

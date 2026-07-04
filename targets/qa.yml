@@ -25,6 +25,8 @@ targets:
       knowledge_assistant_endpoint_name: "<QA-KNOWLEDGE-ASSISTANT-ENDPOINT>"
       # Example: existing serving endpoint name in QA workspace
       serving_endpoint_name: "<QA-SERVING-ENDPOINT>"
+      # Example: existing AI search serving endpoint name in QA workspace
+      ai_search_endpoint_name: "<QA-AI-SEARCH-ENDPOINT>"
       # Example: app name that this app can call, e.g. "analytics-assistant-qa"
       target_app_name: "<QA-TARGET-APP-NAME>"
       # Observability owner: lifecycle audit sink in QA.
@@ -62,3 +64,7 @@ targets:
               name: Supply Chain Genie Space
               space_id: ${var.supply_chain_genie_space_id}
               permission: CAN_RUN
+          - name: ai_search_endpoint
+            serving_endpoint:
+              name: ${var.ai_search_endpoint_name}
+              permission: CAN_QUERY
