@@ -2,23 +2,39 @@ targets:
   prod:
     mode: production
     workspace:
+      # Platform owner: Databricks workspace URL for PROD.
+      # Example: https://dbc-xxxxxxxx-xxxx.cloud.databricks.com
       host: PLACE_HOLDER_FOR_DATABRICKS_HOST_PRD
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:
       app_name: multiagent-app
+      # MLflow owner: experiment used for traces and eval in PROD.
+      # Example: "1234567890123456" (numeric experiment id as string)
       mlflow_experiment_id: "<PROD-MLFLOW-EXPERIMENT-ID>"
+      # Data/AI owner: Genie and serving resources for PROD.
+      # Example: 01f159f5d91419549020e3609add391c
       genie_space_id: "<PROD-GENIE-SPACE-ID>"
+      # Example: 01f159f5d91419549020e3609add391c
       store_manager_genie_space_id: "<PROD-STORE-MANAGER-GENIE-SPACE-ID>"
+      # Example: 01f159f5d91419549020e3609add391c
       executive_genie_space_id: "<PROD-EXECUTIVE-GENIE-SPACE-ID>"
+      # Example: 01f159f5d91419549020e3609add391c
       supply_chain_genie_space_id: "<PROD-SUPPLY-CHAIN-GENIE-SPACE-ID>"
+      # Example: existing serving endpoint name in PROD workspace
       knowledge_assistant_endpoint_name: "<PROD-KNOWLEDGE-ASSISTANT-ENDPOINT>"
+      # Example: existing serving endpoint name in PROD workspace
       serving_endpoint_name: "<PROD-SERVING-ENDPOINT>"
+      # Example: app name that this app can call, e.g. "analytics-assistant-prod"
       target_app_name: "<PROD-TARGET-APP-NAME>"
+      # Observability owner: lifecycle audit sink in PROD.
       message_bus_backend: uc_table
       message_bus_topic: agent-lifecycle-events
+      # Example: SQL warehouse id from PROD workspace
       uc_audit_warehouse_id: "<PROD-UC-AUDIT-WAREHOUSE-ID>"
+      # Example: Unity Catalog catalog name, e.g. "main"
       uc_audit_catalog: "<PROD-UC-AUDIT-CATALOG>"
+      # Example: Unity Catalog schema name, e.g. "observability"
       uc_audit_schema: "<PROD-UC-AUDIT-SCHEMA>"
       uc_audit_table: agent_lifecycle_events
     resources:
