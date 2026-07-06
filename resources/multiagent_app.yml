@@ -3,6 +3,38 @@ resources:
     multiagent-app:
       name: ${var.app_name}
       description: "Multi-agent orchestrator that queries other agents, Genie spaces, and serving endpoints"
+      # App access control: assign principals that can use/manage this app.
+      # permissions:
+      # - level: CAN_USE
+      #   service_principal_name: ${var.app_can_use_service_principal_id}
+      # - level: CAN_MANAGE
+      #   service_principal_name: ${var.app_can_manage_service_principal_id}
+      # Optional app properties supported by the Databricks bundle schema.
+      # Keep commented unless you intend to enable them for this deployment.
+      # budget_policy_id: ${var.app_budget_policy_id}
+      # compute_min_instances: 1
+      # compute_max_instances: 2
+      # compute_size: MEDIUM
+      # git_repository:
+      #   provider: gitHub
+      #   url: https://github.com/wchen-dea/Multi-Agent-App-On-Databricks
+      # git_source:
+      #   branch: main
+      #   source_code_path: .
+      # lifecycle:
+      #   prevent_destroy: false
+      #   started: true
+      # permissions:
+      # - level: CAN_USE
+      #   group_name: users
+      # space: my-space
+      # telemetry_export_destinations:
+      # - unity_catalog:
+      #     logs_table: main.observability.app_logs
+      # usage_policy_id: ${var.app_usage_policy_id}
+      # user_api_scopes:
+      # - sql
+      # - serving-endpoints
       source_code_path: ../.databricks_app_source
       config:
         command: ["python", "launcher.py"]

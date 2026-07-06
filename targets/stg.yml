@@ -9,6 +9,7 @@ targets:
       state_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/state
     variables:
       app_name: multiagent-app-stg
+      subagents_config_path: "/app/python/source_code/.venv/lib/python3.11/site-packages/backend/domain/subagents.stg.json"
       # MLflow owner: experiment used for traces and eval in STG.
       # Example: "1234567890123456" (numeric experiment id as string)
       mlflow_experiment_id: "<STG-MLFLOW-EXPERIMENT-ID>"
@@ -43,6 +44,17 @@ targets:
       apps:
         multiagent-app:
           name: multiagent-app
+          compute_size: MEDIUM
+          # Example: policy id, e.g. 06846952-d579-4cd7-ab90-b86f0a1e3ed7
+          budget_policy_id: "<STG-APP-BUDGET-POLICY-ID>"
+          # Example: policy id, e.g. 06846952-d579-4cd7-ab90-b86f0a1e3ed7
+          usage_policy_id: "<STG-APP-USAGE-POLICY-ID>"
+          # Example scopes from deployed app:
+          # - iam.current-user:read
+          # - iam.access-control:read
+          user_api_scopes:
+          - "<STG-APP-USER-API-SCOPE-1>"
+          - "<STG-APP-USER-API-SCOPE-2>"
           resources:
           - name: genie_space
             genie_space:

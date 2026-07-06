@@ -22,7 +22,7 @@ help:
 	@printf "  make import            Upload .databricks_app_source into app workspace path\n"
 	@printf "  make stop              Stop app compute for APP_NAME\n"
 	@printf "  make deploy            Deploy uploaded app source with Databricks Apps\n"
-	@printf "  make redeploy          Build, validate, import, deploy, and verify health\n"
+	@printf "  make redeploy          Full redeploy: validate, apply bundle resources, import source, deploy app, verify health\n"
 	@printf "  make health            Verify app deployment/app state is healthy\n"
 	@printf "  make smoke            Smoke-check app URL, React index shell, and /invocations route\n"
 	@printf "  make status            Print current app status JSON\n"
@@ -105,7 +105,7 @@ deploy: ensure-running
 	printf "Deploying app %s from source path: %s\n" "$(APP_NAME)" "$$APP_SRC"; \
 	databricks apps deploy "$(APP_NAME)" --profile "$(PROFILE)" --source-code-path "$$APP_SRC" --mode SNAPSHOT
 
-redeploy: build-app-source validate import deploy health
+redeploy: build-app-source validate bundle-deploy import deploy health smoke
 
 health:
 	@APP_JSON="$$($(APP_GET_JSON))"; \

@@ -52,6 +52,12 @@ variables:
   target_app_name:
     description: Target Databricks app name granted CAN_USE for the current environment
     default: ""
+  app_can_use_service_principal_id:
+    description: Service principal application ID granted CAN_USE on the app
+    default: ""
+  app_can_manage_service_principal_id:
+    description: Service principal application ID granted CAN_MANAGE on the app
+    default: ""
   message_bus_backend:
     description: Message bus backend (structured_logging, noop, kafka, rabbitmq, uc_table)
     default: structured_logging

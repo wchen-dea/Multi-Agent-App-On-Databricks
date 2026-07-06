@@ -24,6 +24,18 @@ from backend.shared.runtime_utils import RequestIdentityContext, build_mcp_url
 logger = logging.getLogger(__name__)
 
 
+def _format_unavailable_reason(name: str, exc: Exception) -> str:
+    """Format a concise unavailable reason with exception details."""
+    detail = str(exc).strip() or "no error details"
+    reason = f"{name} unavailable: {type(exc).__name__}: {detail}"
+    cause = exc.__cause__ or exc.__context__
+    if cause is not None:
+        cause_detail = str(cause).strip()
+        if cause_detail and cause_detail != detail:
+            reason += f" (caused by {type(cause).__name__}: {cause_detail})"
+    return reason
+
+
 @dataclass(frozen=True)
 class OrchestratorDependencies:
     """Injectable dependencies for orchestration service functions."""
@@ -195,11 +207,15 @@ async def connect_healthy_mcp_servers(
             connected = await stack.enter_async_context(server)
             await connected.list_tools()
             healthy.append(connected)
-        except Exception:
+        except Exception as exc:
+            reason = _format_unavailable_reason(name, exc)
             logger.warning(
-                "MCP server %r unavailable; continuing without it.", name, exc_info=True
+                "MCP server %r unavailable (%s); continuing without it.",
+                name,
+                reason,
+                exc_info=True,
             )
-            unavailable.append(name)
+            unavailable.append(reason)
 
     return healthy, unavailable
 
@@ -245,9 +261,10 @@ def create_orchestrator_agent(
         )
 
     if unavailable_tools:
-        names = ", ".join(sorted(set(unavailable_tools)))
+        names = "\n- " + "\n- ".join(sorted(set(unavailable_tools)))
         instructions += (
-            f"\n\nThese tools are currently UNAVAILABLE: {names}. "
+            "\n\nUnavailable tool/runtime details:"
+            f"{names}\n"
             "If answering requires one of them, tell the user it isn't available "
             "instead of guessing."
         )

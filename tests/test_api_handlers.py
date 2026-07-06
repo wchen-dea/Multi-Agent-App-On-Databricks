@@ -116,3 +116,28 @@ def test_guardrail_scope_subagents_empty_when_no_tool_activity():
     )
 
     assert scoped == []
+
+
+def test_invoke_and_stream_success_events_include_unavailable_tool_details_shape():
+    # Keep this as a focused regression check on emitted payload shape.
+    invoke_payload = {
+        "output_items": 1,
+        "unavailable_tools": 2,
+        "unavailable_tool_details": [
+            "Genie:sales unavailable: RuntimeError: 401 unauthorized",
+            "Genie:store unavailable: RuntimeError: deadline exceeded",
+        ],
+    }
+
+    stream_payload = {
+        "events_streamed": 3,
+        "unavailable_tools": 1,
+        "unavailable_tool_details": [
+            "Genie:sales unavailable: RuntimeError: 401 unauthorized",
+        ],
+    }
+
+    assert isinstance(invoke_payload["unavailable_tool_details"], list)
+    assert invoke_payload["unavailable_tools"] == len(invoke_payload["unavailable_tool_details"])
+    assert isinstance(stream_payload["unavailable_tool_details"], list)
+    assert stream_payload["unavailable_tools"] == len(stream_payload["unavailable_tool_details"])

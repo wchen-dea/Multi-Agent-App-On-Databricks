@@ -6,6 +6,7 @@ from backend.services.orchestrator_service import (
     OrchestratorDependencies,
     build_mcp_servers,
     build_subagent_tools,
+    connect_healthy_mcp_servers,
     create_orchestrator_agent,
 )
 
@@ -108,3 +109,55 @@ def test_create_orchestrator_agent_requires_explicit_evidence_format_for_governe
     assert "evidence=true" in agent.instructions
     assert "Source:" in agent.instructions
     assert "freshness SLA" in agent.instructions
+
+
+def test_connect_healthy_mcp_servers_returns_detailed_unavailable_reason():
+    class HealthyServer:
+        name = "Genie:healthy"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def list_tools(self):
+            return []
+
+    class BrokenServer:
+        name = "Genie:sales_agent"
+
+        async def __aenter__(self):
+            raise RuntimeError("401 unauthorized")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    async def _run():
+        from contextlib import AsyncExitStack
+
+        async with AsyncExitStack() as stack:
+            return await connect_healthy_mcp_servers(
+                stack,
+                [HealthyServer(), BrokenServer()],
+            )
+
+    healthy, unavailable = asyncio.run(_run())
+
+    assert len(healthy) == 1
+    assert unavailable == [
+        "Genie:sales_agent unavailable: RuntimeError: 401 unauthorized"
+    ]
+
+
+def test_create_orchestrator_agent_includes_unavailable_details():
+    agent = create_orchestrator_agent(
+        "test-model",
+        [],
+        [],
+        [],
+        ["Genie:sales_agent unavailable: RuntimeError: 401 unauthorized"],
+    )
+
+    assert "Unavailable tool/runtime details:" in agent.instructions
+    assert "Genie:sales_agent unavailable: RuntimeError: 401 unauthorized" in agent.instructions

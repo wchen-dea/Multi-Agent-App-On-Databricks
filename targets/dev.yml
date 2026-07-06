@@ -26,6 +26,7 @@ targets:
       apps:
         multiagent-app:
           name: multiagent-app-dev
+          usage_policy_id: "06846952-d579-4cd7-ab90-b86f0a1e3ed7"
           resources:
           - name: genie_space
             genie_space:

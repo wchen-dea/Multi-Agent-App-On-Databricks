@@ -1,6 +1,7 @@
 """Define typed subagent configuration models and parsing helpers."""
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,8 @@ REQUIRED_METADATA_KEYS = {
     "allowed_personas",
     "requires_evidence",
 }
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -135,15 +138,88 @@ def parse_subagents(raw_subagents: Iterable[dict[str, Any]]) -> list[SubagentCon
     return [SubagentConfig.from_dict(value) for value in raw_subagents]
 
 
-DEFAULT_SUBAGENTS_CONFIG_PATH = Path(__file__).with_name("subagents.json")
+def _is_placeholder(value: Any) -> bool:
+    """Return true for unresolved placeholder values like <SOME-ID>."""
+    return isinstance(value, str) and value.startswith("<") and value.endswith(">")
+
+
+def _is_configured_subagent(entry: dict[str, Any]) -> bool:
+    """Return true when an entry is configured with concrete identifiers."""
+    kind = entry.get("type")
+    if kind == "genie" and _is_placeholder(entry.get("space_id")):
+        return False
+    if kind != "genie" and _is_placeholder(entry.get("endpoint")):
+        return False
+    return True
+
+
 SUBAGENTS_CONFIG_PATH_ENV = "SUBAGENTS_CONFIG_PATH"
+TARGET_ENV_VARS = ("DATABRICKS_BUNDLE_TARGET", "BUNDLE_TARGET", "TARGET", "APP_ENV")
+SUPPORTED_TARGETS = ("dev", "qa", "stg", "prod")
+DEFAULT_TARGET_FALLBACK = "dev"
+
+
+def _target_config_path(target: str) -> Path:
+    """Build the expected env-specific subagent config path."""
+    return Path(__file__).with_name(f"subagents.{target}.json")
+
+
+def _find_supported_target_from_env() -> tuple[str, str] | None:
+    """Return (env_var_name, target) for the first supported target found in env vars."""
+    for env_name in TARGET_ENV_VARS:
+        target = os.getenv(env_name, "").strip().lower()
+        if target in SUPPORTED_TARGETS:
+            return env_name, target
+    return None
+
+
+def _resolve_subagents_config_path(config_path: str | Path | None = None) -> Path:
+    """Resolve subagent config path from explicit path, env override, or target fallback."""
+    if config_path:
+        return Path(config_path)
+
+    env_path = os.getenv(SUBAGENTS_CONFIG_PATH_ENV)
+    if env_path:
+        return Path(env_path)
+
+    target_selection = _find_supported_target_from_env()
+    if target_selection:
+        env_name, target = target_selection
+        candidate = _target_config_path(target)
+        if candidate.exists():
+            logger.info(
+                "Resolved subagent config via %s=%s -> %s",
+                env_name,
+                target,
+                candidate,
+            )
+            return candidate
+
+    default_target_path = _target_config_path(DEFAULT_TARGET_FALLBACK)
+    if default_target_path.exists():
+        logger.warning(
+            "No %s or target env provided; defaulting to %s",
+            SUBAGENTS_CONFIG_PATH_ENV,
+            default_target_path,
+        )
+        return default_target_path
+
+    available = [
+        str(path.name)
+        for path in sorted(Path(__file__).parent.glob("subagents.*.json"))
+        if path.is_file()
+    ]
+    available_configs = ", ".join(available) if available else "<none>"
+    raise ValueError(
+        "Could not resolve subagent configuration file. "
+        f"Set {SUBAGENTS_CONFIG_PATH_ENV} or one of {TARGET_ENV_VARS} to {', '.join(SUPPORTED_TARGETS)}. "
+        f"Available env-specific config files: {available_configs}"
+    )
 
 
 def load_subagents(config_path: str | Path | None = None) -> list[SubagentConfig]:
     """Load and validate subagent configuration from JSON file."""
-    resolved_path = Path(
-        config_path or os.getenv(SUBAGENTS_CONFIG_PATH_ENV) or DEFAULT_SUBAGENTS_CONFIG_PATH
-    )
+    resolved_path = _resolve_subagents_config_path(config_path)
     try:
         raw = json.loads(resolved_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -158,7 +234,16 @@ def load_subagents(config_path: str | Path | None = None) -> list[SubagentConfig
     if not all(isinstance(item, dict) for item in raw):
         raise ValueError(f"Each subagent entry must be an object: {resolved_path}")
 
-    return parse_subagents(raw)
+    configured_entries = [item for item in raw if _is_configured_subagent(item)]
+    skipped = len(raw) - len(configured_entries)
+    if skipped:
+        logger.warning(
+            "Skipped %s unconfigured subagent entries with placeholder identifiers from %s",
+            skipped,
+            resolved_path,
+        )
+
+    return parse_subagents(configured_entries)
 
 
 SUBAGENTS = load_subagents()

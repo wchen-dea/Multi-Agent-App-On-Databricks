@@ -316,6 +316,7 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
                 {
                     "output_items": len(result.new_items),
                     "unavailable_tools": len(unavailable),
+                    "unavailable_tool_details": unavailable,
                 },
             )
             return ResponsesAgentResponse(output=cast(Any, output_items))
@@ -440,6 +441,7 @@ async def stream_handler(
                 {
                     "events_streamed": event_count,
                     "unavailable_tools": len(unavailable),
+                    "unavailable_tool_details": unavailable,
                 },
             )
     except UserError as e:

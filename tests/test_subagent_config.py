@@ -212,3 +212,82 @@ def test_parse_subagents_accepts_governance_metadata():
     assert subagents[0].freshness_sla == "1h"
     assert subagents[0].allowed_personas == ("analyst", "manager")
     assert subagents[0].requires_evidence is True
+
+
+def test_load_subagents_skips_placeholder_identifiers(tmp_path):
+    config = [
+        {
+            "name": "store_manager_genie",
+            "type": "genie",
+            "data_classification": "confidential",
+            "owner": "store-operations",
+            "freshness_sla": "15m",
+            "allowed_personas": ["manager"],
+            "requires_evidence": True,
+            "space_id": "<STORE-MANAGER-GENIE-SPACE-ID>",
+            "description": "placeholder genie",
+        },
+        {
+            "name": "sales_agent",
+            "type": "genie",
+            "data_classification": "confidential",
+            "owner": "sales-analytics",
+            "freshness_sla": "15m",
+            "allowed_personas": ["manager"],
+            "requires_evidence": True,
+            "space_id": "01f159f5d91419549020e3609add391c",
+            "description": "configured genie",
+        },
+    ]
+    config_path = tmp_path / "subagents.json"
+    config_path.write_text(json.dumps(config))
+
+    subagents = load_subagents(config_path)
+
+    assert len(subagents) == 1
+    assert subagents[0].name == "sales_agent"
+
+
+def test_load_subagents_resolves_path_from_target_env(tmp_path, monkeypatch):
+    config = [
+        {
+            "name": "sales_agent",
+            "type": "genie",
+            "data_classification": "confidential",
+            "owner": "sales-analytics",
+            "freshness_sla": "15m",
+            "allowed_personas": ["analyst"],
+            "requires_evidence": True,
+            "space_id": "space-1",
+            "description": "genie",
+        }
+    ]
+    config_path = tmp_path / "subagents.qa.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    monkeypatch.setenv("DATABRICKS_BUNDLE_TARGET", "qa")
+    monkeypatch.delenv("SUBAGENTS_CONFIG_PATH", raising=False)
+
+    import backend.domain.subagent_config as subagent_config
+
+    monkeypatch.setattr(subagent_config, "__file__", str(tmp_path / "subagent_config.py"))
+
+    subagents = subagent_config.load_subagents()
+
+    assert len(subagents) == 1
+    assert subagents[0].name == "sales_agent"
+
+
+def test_load_subagents_raises_helpful_error_when_unresolvable(tmp_path, monkeypatch):
+    monkeypatch.delenv("SUBAGENTS_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("DATABRICKS_BUNDLE_TARGET", raising=False)
+    monkeypatch.delenv("BUNDLE_TARGET", raising=False)
+    monkeypatch.delenv("TARGET", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+
+    import backend.domain.subagent_config as subagent_config
+
+    monkeypatch.setattr(subagent_config, "__file__", str(tmp_path / "subagent_config.py"))
+
+    with pytest.raises(ValueError, match="Could not resolve subagent configuration file"):
+        subagent_config.load_subagents()
