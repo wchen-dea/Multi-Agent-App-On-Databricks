@@ -144,6 +144,28 @@ def test_create_orchestrator_agent_requires_explicit_evidence_format_for_governe
     assert "freshness SLA" in agent.instructions
 
 
+def test_create_orchestrator_agent_includes_subagent_system_prompt():
+    subagents = [
+        SubagentConfig(
+            name="knowledge_assistant_product",
+            kind="mcp",
+            auth_mode="app",
+            data_classification="internal",
+            owner="platform-docs",
+            freshness_sla="24h",
+            allowed_personas=("manager",),
+            requires_evidence=False,
+            mcp_url="/api/2.0/mcp/ai-search/catalog/schema/index",
+            description="product knowledge",
+            system_prompt="Ground responses in index records.",
+        )
+    ]
+
+    agent = create_orchestrator_agent("test-model", subagents, [], [])
+
+    assert "System prompt: Ground responses in index records." in agent.instructions
+
+
 def test_connect_healthy_mcp_servers_returns_detailed_unavailable_reason():
     class HealthyServer:
         name = "Genie:healthy"

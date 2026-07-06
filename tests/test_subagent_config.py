@@ -236,6 +236,28 @@ def test_parse_subagents_accepts_mcp_subagent():
     assert subagents[0].mcp_url == "/api/2.0/mcp/ai-search/catalog/schema/index"
 
 
+def test_parse_subagents_accepts_system_prompt():
+    subagents = parse_subagents(
+        [
+            {
+                "name": "sales_agent",
+                "type": "genie",
+                "description": "sales genie",
+                "system_prompt": "Always answer with clear KPI labels.",
+                "space_id": "space-1",
+                "data_classification": "confidential",
+                "owner": "sales-analytics",
+                "freshness_sla": "15m",
+                "allowed_personas": ["manager"],
+                "requires_evidence": True,
+            }
+        ]
+    )
+
+    assert len(subagents) == 1
+    assert subagents[0].system_prompt == "Always answer with clear KPI labels."
+
+
 def test_load_subagents_skips_placeholder_identifiers(tmp_path):
     config = [
         {

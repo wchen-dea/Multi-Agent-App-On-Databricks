@@ -88,10 +88,10 @@ class PermissionManager:
         except Exception as exc:
             raise CliError(f"Could not read variables from {target_file}") from exc
 
-    def _read_subagent_resource_hints(self) -> tuple[list[str], list[str]]:
+    def _read_subagent_resource_hints(self) -> tuple[list[str], list[str], list[tuple[str, str, str]]]:
         config_file = Path("src/backend/domain") / f"subagents.{self.target}.json"
         if not config_file.exists():
-            return [], []
+            return [], [], []
 
         try:
             raw = json.loads(config_file.read_text(encoding="utf-8"))
@@ -100,6 +100,7 @@ class PermissionManager:
 
         genie_space_ids: list[str] = []
         serving_endpoints: list[str] = []
+        ai_search_indexes: list[tuple[str, str, str]] = []
         for item in raw:
             if not isinstance(item, dict):
                 continue
@@ -112,8 +113,34 @@ class PermissionManager:
                 endpoint = item.get("endpoint")
                 if isinstance(endpoint, str) and endpoint.strip() and not _is_placeholder(endpoint):
                     serving_endpoints.append(endpoint.strip())
+            elif kind == "mcp":
+                mcp_url = item.get("mcp_url")
+                if isinstance(mcp_url, str):
+                    parsed = self._parse_ai_search_mcp_url(mcp_url)
+                    if parsed is not None:
+                        ai_search_indexes.append(parsed)
 
-        return sorted(set(genie_space_ids)), sorted(set(serving_endpoints))
+        return (
+            sorted(set(genie_space_ids)),
+            sorted(set(serving_endpoints)),
+            sorted(set(ai_search_indexes)),
+        )
+
+    def _parse_ai_search_mcp_url(self, mcp_url: str) -> tuple[str, str, str] | None:
+        parts = [part for part in mcp_url.strip().split("/") if part]
+        # Expected format:
+        # /api/2.0/mcp/ai-search/<catalog>/<schema>/<index>
+        if len(parts) != 7:
+            return None
+        if parts[0] != "api" or parts[1] != "2.0" or parts[2] != "mcp" or parts[3] != "ai-search":
+            return None
+
+        catalog, schema, index_name = parts[4], parts[5], parts[6]
+        if not catalog or not schema or not index_name:
+            return None
+        if _is_placeholder(catalog) or _is_placeholder(schema) or _is_placeholder(index_name):
+            return None
+        return (catalog, schema, index_name)
 
     def _resolve_app_sp_client_id(self) -> str:
         payload = self.cli.run(["apps", "get", self.app_name, "--output", "json"], expect_json=True)
@@ -250,6 +277,113 @@ class PermissionManager:
         status = (result.get("status") or {}).get("state")
         return status in {"SUCCEEDED", "PENDING", "RUNNING"}
 
+    def _grant_uc_privilege(
+        self,
+        securable_type: str,
+        full_name: str,
+        privilege: str,
+        principal: str,
+    ) -> bool:
+        payload = {
+            "changes": [
+                {
+                    "principal": principal,
+                    "add": [privilege],
+                }
+            ]
+        }
+        args = [
+            "grants",
+            "update",
+            securable_type,
+            full_name,
+            "--json",
+            json.dumps(payload),
+        ]
+        if self.dry_run:
+            print(f"DRY RUN: databricks {' '.join(args)}")
+            return True
+
+        result = self.cli.run(args, check=False)
+        return result.returncode == 0
+
+    def _uc_securable_exists(self, securable_type: str, full_name: str) -> bool:
+        args = ["grants", "get", securable_type, full_name]
+        result = self.cli.run(args, check=False)
+        return result.returncode == 0
+
+    def _check_ai_search_uc_securables(
+        self,
+        ai_search_indexes: list[tuple[str, str, str]],
+    ) -> list[tuple[str, str, list[str]]]:
+        if not ai_search_indexes:
+            print("INFO: No AI Search MCP UC objects discovered from subagent config.")
+            return []
+
+        checked: list[tuple[str, str, list[str]]] = []
+        print("Validating AI Search UC securables before grants...")
+        for catalog, schema, index_name in ai_search_indexes:
+            source_table = f"{index_name.replace('_index', '_source_final')}"
+            tables = [index_name, source_table]
+
+            cat_ok = self._uc_securable_exists("catalog", catalog)
+            print(f"UC CHECK: {'OK' if cat_ok else 'MISSING'} -> catalog {catalog}")
+            if not cat_ok:
+                self._warn_or_fail(f"UC catalog not found or inaccessible: {catalog}")
+
+            schema_full = f"{catalog}.{schema}"
+            schema_ok = self._uc_securable_exists("schema", schema_full)
+            print(f"UC CHECK: {'OK' if schema_ok else 'MISSING'} -> schema {schema_full}")
+            if not schema_ok:
+                self._warn_or_fail(f"UC schema not found or inaccessible: {schema_full}")
+
+            existing_tables: list[str] = []
+            for table in tables:
+                table_full = f"{catalog}.{schema}.{table}"
+                table_ok = self._uc_securable_exists("table", table_full)
+                print(f"UC CHECK: {'OK' if table_ok else 'MISSING'} -> table {table_full}")
+                if table_ok:
+                    existing_tables.append(table)
+                else:
+                    self._warn_or_fail(f"UC table not found or inaccessible: {table_full}")
+
+            if cat_ok and schema_ok and existing_tables:
+                checked.append((catalog, schema, existing_tables))
+
+        return checked
+
+    def _grant_ai_search_uc_permissions(
+        self,
+        ai_search_securables: list[tuple[str, str, list[str]]],
+        sp_client_id: str,
+    ) -> None:
+        if not ai_search_securables:
+            print("INFO: No validated AI Search UC securables to grant.")
+            return
+
+        # Use the app service principal object id for Unity Catalog grants.
+        principal = sp_client_id
+
+        for catalog, schema, table_names in ai_search_securables:
+
+            cat_ok = self._grant_uc_privilege("catalog", catalog, "USE_CATALOG", principal)
+            print(f"UC GRANT: {'OK' if cat_ok else 'FAILED'} -> USE_CATALOG ON {catalog}")
+            if not cat_ok:
+                self._warn_or_fail(f"Failed UC grant USE_CATALOG on {catalog}")
+
+            schema_full = f"{catalog}.{schema}"
+            schema_ok = self._grant_uc_privilege("schema", schema_full, "USE_SCHEMA", principal)
+            print(f"UC GRANT: {'OK' if schema_ok else 'FAILED'} -> USE_SCHEMA ON {schema_full}")
+            if not schema_ok:
+                self._warn_or_fail(f"Failed UC grant USE_SCHEMA on {schema_full}")
+
+            for table in table_names:
+                table_full = f"{catalog}.{schema}.{table}"
+                select_ok = self._grant_uc_privilege("table", table_full, "SELECT", principal)
+                print(f"UC GRANT: {'OK' if select_ok else 'FAILED'} -> SELECT ON {table_full}")
+                if not select_ok:
+                    self._warn_or_fail(f"Failed UC grant SELECT on {table_full}")
+
     def _grant_uc_permissions(
         self,
         catalog: str | None,
@@ -373,7 +507,7 @@ class PermissionManager:
         print(f"App: {self.app_name}")
         print(f"Service principal client id: {sp_client_id}")
 
-        subagent_genie, subagent_serving = self._read_subagent_resource_hints()
+        subagent_genie, subagent_serving, ai_search_indexes = self._read_subagent_resource_hints()
 
         configured_genie = [
             target_vars.get("genie_space_id"),
@@ -422,14 +556,21 @@ class PermissionManager:
         print(f"Genie spaces: {genie_space_ids or 'none'}")
         print(f"Serving endpoints: {serving_endpoints or 'none'}")
         print(f"Vector search endpoints: {vector_search_endpoints or 'none'}")
+        if ai_search_indexes:
+            print(f"AI Search UC objects: {ai_search_indexes}")
+        else:
+            print("AI Search UC objects: none")
         print(f"UC catalog/schema: {uc_catalog}.{uc_schema}")
         print(f"SQL warehouse: {warehouse_id}")
         if self.dry_run:
             print("Mode: dry-run")
 
+        validated_ai_search = self._check_ai_search_uc_securables(ai_search_indexes)
+
         self._grant_genie_can_run(genie_space_ids, sp_client_id)
         self._grant_serving_can_query(serving_endpoints, sp_client_id)
         self._grant_vector_search_can_query(vector_search_endpoints, sp_client_id)
+        self._grant_ai_search_uc_permissions(validated_ai_search, sp_client_id)
         if message_bus_backend == "uc_table":
             self._grant_uc_permissions(
                 str(uc_catalog) if isinstance(uc_catalog, str) else None,

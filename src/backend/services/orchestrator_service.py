@@ -104,9 +104,15 @@ def build_subagent_tools(
                 deps=dependencies,
             )
             try:
+                tool_input = [{"role": "user", "content": question}]
+                if subagent_cfg_param.system_prompt:
+                    tool_input = [
+                        {"role": "system", "content": subagent_cfg_param.system_prompt},
+                        *tool_input,
+                    ]
                 response = await selected_client.responses.create(
                     model=subagent_cfg_param.model_name,
-                    input=[{"role": "user", "content": question}],
+                    input=tool_input,
                 )
                 dependencies.message_bus.publish(
                     "tool.call.succeeded",
@@ -236,21 +242,25 @@ def create_orchestrator_agent(
     unavailable_tools: list[str] | None = None,
 ) -> Agent:
     """Create the orchestrator Agent with runtime-aware tool instructions."""
-    tool_lines = [
-        (
-            "- MCP tools "
-            f"({subagent.name}, auth={subagent.auth_mode}, "
-            f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
-            f"{subagent.description}"
-        )
-        if subagent.is_genie or subagent.is_mcp
-        else (
-            f"- {subagent.tool_name} (auth={subagent.auth_mode}, "
-            f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
-            f"{subagent.description}"
-        )
-        for subagent in subagents
-    ]
+    tool_lines: list[str] = []
+    for subagent in subagents:
+        if subagent.is_genie or subagent.is_mcp:
+            base = (
+                "- MCP tools "
+                f"({subagent.name}, auth={subagent.auth_mode}, "
+                f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
+                f"{subagent.description}"
+            )
+        else:
+            base = (
+                f"- {subagent.tool_name} (auth={subagent.auth_mode}, "
+                f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
+                f"{subagent.description}"
+            )
+
+        if subagent.system_prompt:
+            base += f"\n  System prompt: {subagent.system_prompt}"
+        tool_lines.append(base)
 
     if tool_lines:
         instructions = (

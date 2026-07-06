@@ -31,6 +31,7 @@ class SubagentConfig:
     name: str
     kind: SubagentKind
     description: str
+    system_prompt: str | None = None
     endpoint: str | None = None
     space_id: str | None = None
     mcp_url: str | None = None
@@ -61,6 +62,8 @@ class SubagentConfig:
             )
         if not self.description:
             raise ValueError(f"Subagent {self.name!r} must include a description")
+        if self.system_prompt is not None and not self.system_prompt.strip():
+            raise ValueError(f"Subagent {self.name!r} has empty system_prompt")
         if self.kind == "genie" and not self.space_id:
             raise ValueError(f"Genie subagent {self.name!r} must define space_id")
         if self.kind == "mcp" and not self.mcp_url:
@@ -127,6 +130,7 @@ class SubagentConfig:
                 name=value["name"],
                 kind=kind,
                 description=value["description"],
+                system_prompt=value.get("system_prompt"),
                 endpoint=value.get("endpoint"),
                 space_id=value.get("space_id"),
                 mcp_url=value.get("mcp_url"),
