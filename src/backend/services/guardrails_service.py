@@ -1,4 +1,4 @@
-"""Response guardrails for governed/sensitive outputs."""
+"""Apply response guardrails for governed or sensitive outputs."""
 
 from dataclasses import dataclass
 import re
@@ -8,7 +8,12 @@ from backend.domain.subagent_config import SubagentConfig
 
 @dataclass(frozen=True)
 class GuardrailResult:
-    """Guardrail decision for a model response."""
+    """Represent deterministic guardrail evaluation outcome.
+
+    Attributes:
+        blocked: True when response should be blocked.
+        reasons: Stable reason codes explaining why response was blocked.
+    """
 
     blocked: bool
     reasons: tuple[str, ...]
@@ -34,6 +39,14 @@ _UNSAFE_PATTERNS = [
 
 
 def _has_citation(text: str) -> bool:
+    """Check whether response text includes an acceptable citation marker.
+
+    Args:
+        text: Candidate assistant response text.
+
+    Returns:
+        True when text contains bracket citations or a source/citation label.
+    """
     return bool(
         re.search(r"\[[0-9]+\]", text)
         or re.search(r"\bsource:\b", text, flags=re.IGNORECASE)
@@ -45,7 +58,20 @@ def evaluate_response_guardrails(
     response_text: str,
     governed_subagents: list[SubagentConfig],
 ) -> GuardrailResult:
-    """Apply deterministic guardrails to block risky governed responses."""
+    """Apply deterministic guardrails to response text.
+
+    Args:
+        response_text: Candidate assistant response.
+        governed_subagents: Subagents involved in tool execution for this
+            response.
+
+    Returns:
+        Guardrail result including block decision and reason codes.
+
+    Notes:
+        Evidence is required when any participating subagent sets
+        requires_evidence=true.
+    """
     text = response_text.strip()
     lowered = text.lower()
     reasons: list[str] = []

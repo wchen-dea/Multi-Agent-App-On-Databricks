@@ -71,12 +71,12 @@ This document covers low-level design and implementation details. High-level arc
 
 - `src/backend/domain/subagent_config.py`
   - Typed `SubagentConfig` dataclass
-  - Validation for subagent type-specific required fields and `auth_mode`
+  - Validation for subagent type-specific required fields, optional `system_prompt`, and `auth_mode`
   - Loads and validates canonical `SUBAGENTS` from external JSON config
 
-- `src/backend/domain/subagents.json`
-  - Canonical subagent configuration data source
-  - Environment-specific path override via `SUBAGENTS_CONFIG_PATH`
+- `src/backend/domain/subagents.<target>.json`
+  - Environment-specific subagent configuration data source (`dev`, `qa`, `stg`, `prod`)
+  - Runtime can override path via `SUBAGENTS_CONFIG_PATH`
 
 - `src/backend/shared/request_utils.py`
   - Normalizes input items into plain role/content messages
@@ -126,6 +126,7 @@ This document covers low-level design and implementation details. High-level arc
 
 - Orchestrator pattern: a central orchestrator routes user intent to specialist tools and subagents.
 - Strategy pattern: routing behavior varies by subagent type (`genie`, `serving_endpoint`, `app`) behind a unified interface.
+- Strategy pattern: routing behavior varies by subagent type (`genie`, `serving_endpoint`, `app`, `mcp`) behind a unified interface.
 - Policy/strategy blend: runtime auth selection varies by subagent `auth_mode` (`app`, `obo`) under a unified tool interface.
 - Configuration object pattern: typed subagent configuration with centralized validation reduces runtime misconfiguration.
 - Factory/builder pattern: tool and server construction is encapsulated in dedicated builder functions.
@@ -153,6 +154,7 @@ Supported subagent types:
 - `genie` via MCP (`space_id` required)
 - `serving_endpoint` via Databricks Responses API (`endpoint` required)
 - `app` via Databricks Responses API using `apps/<endpoint>` model mapping
+- `mcp` via generic Databricks MCP route (`mcp_url` required)
 
 Supported auth modes:
 
@@ -219,6 +221,10 @@ Used by local and hosted startup:
 Request header used at runtime for OBO:
 
 - `x-forwarded-access-token`
+
+Direct non-interactive Databricks Apps invocation tests should use:
+
+- `Authorization: Bearer <token>`
 
 ## Operational Constraints in Design
 

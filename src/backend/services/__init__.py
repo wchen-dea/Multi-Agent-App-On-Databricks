@@ -1,1 +1,1 @@
-"""Service layer for orchestration and auth context building."""
+"""Provide service-layer helpers for orchestration and auth context building."""

@@ -78,6 +78,8 @@ In chat, operators can control forwarded token state per session:
 
 When set, the token is sent to backend as header `x-forwarded-access-token`.
 
+For non-interactive Databricks Apps `/invocations` tests (for example raw curl), use `Authorization: Bearer <token>`.
+
 ## For Operators
 
 Use this checklist for auth-routing validation:

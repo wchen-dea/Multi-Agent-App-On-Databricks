@@ -37,7 +37,7 @@ Use this default sequence unless you have a specific reason to skip steps:
 | `run-locally` | Local run, smoke tests, troubleshooting | healthy local app and `/invocations` checks |
 | `discover-tools` | Identify available Databricks resources | Genie IDs, endpoint names, integration inventory |
 | `create-tools` | Provision missing workspace resources | new Genie/endpoint/app resources to integrate |
-| `add-tools` | Add routing + resource permissions | updated `src/backend/domain/subagents.json` and `resources/multiagent_app.yml` |
+| `add-tools` | Add routing + resource permissions | updated `src/backend/domain/subagents.<target>.json` and `resources/multiagent_app.yml` |
 | `modify-agent` | Change orchestration behavior | updated backend orchestration/request logic |
 | `deploy` | Validate, deploy, and restart by target | deployed app and runtime verification |
 
@@ -114,12 +114,13 @@ Constraints: If app exists, bind instead of delete.
 
 ### add-tools
 
-- Update routing in `src/backend/domain/subagents.json`.
+- Update routing in `src/backend/domain/subagents.<target>.json`.
 - Update app resource permissions in `resources/multiagent_app.yml`.
 - Supported subagent types:
   - `genie` requires `space_id`
   - `serving_endpoint` requires `endpoint`
   - `app` requires `endpoint`
+  - `mcp` requires `mcp_url`
 
 ### modify-agent
 
@@ -128,7 +129,7 @@ Constraints: If app exists, bind instead of delete.
   - `src/backend/services/orchestrator_service.py`
   - `src/backend/services/runtime_auth_service.py`
   - `src/backend/domain/subagent_config.py`
-  - `src/backend/domain/subagents.json`
+  - `src/backend/domain/subagents.dev.json` (and other target variants)
   - `src/backend/shared/request_utils.py`
   - `src/backend/shared/runtime_utils.py`
 - Validate:
@@ -138,9 +139,7 @@ Constraints: If app exists, bind instead of delete.
 ### deploy
 
 - Standard flow:
-  - `databricks bundle validate -t <target> --profile <profile>`
-  - `databricks bundle deploy -t <target> --profile <profile>`
-  - `databricks bundle run multiagent-app --target <target>`
+  - `make redeploy TARGET=<target> APP_NAME=<app-name> PROFILE=<profile>`
 - Targets: `dev`, `qa`, `stg`, `prod`
 - Fallback: `bundle sync` plus `apps deploy` if Terraform registry is unavailable
 
@@ -150,7 +149,7 @@ Constraints: If app exists, bind instead of delete.
 2. Do not change routing without matching permission/resource updates.
 3. Store environment-specific names and IDs in `targets/*.yml` variables.
 4. Validate locally before deployment.
-5. Run `bundle run` after `bundle deploy` so new code is active.
+5. Use `make redeploy` so validation, deploy, permissions, and smoke checks run in one flow.
 6. Prefer app bind over delete when app-name conflicts occur.
 
 ## Quick Decision Map

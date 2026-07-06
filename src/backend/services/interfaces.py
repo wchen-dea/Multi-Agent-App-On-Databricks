@@ -1,4 +1,4 @@
-"""Typed service interfaces used for dependency injection and testing."""
+"""Define typed service interfaces for dependency injection and testing."""
 
 from typing import Any, Protocol
 
@@ -11,31 +11,31 @@ from backend.shared.runtime_utils import RequestIdentityContext
 
 
 class IdentityContextProvider(Protocol):
-    """Returns request identity context for app and OBO execution paths."""
+    """Return request identity context for app and OBO execution paths."""
 
     def __call__(self) -> RequestIdentityContext: ...
 
 
 class SessionIdProvider(Protocol):
-    """Extracts session id from an incoming request payload."""
+    """Extract session id from an incoming request payload."""
 
     def __call__(self, request: ResponsesAgentRequest) -> str | None: ...
 
 
 class TraceMetadataUpdater(Protocol):
-    """Persists trace metadata for observability."""
+    """Persist trace metadata for observability."""
 
     def __call__(self, metadata: dict[str, str]) -> Any: ...
 
 
 class OboClientFactory(Protocol):
-    """Builds a user-scoped Databricks OpenAI client for OBO execution."""
+    """Build a user-scoped Databricks OpenAI client for OBO execution."""
 
     def __call__(self, workspace_client: Any) -> AsyncDatabricksOpenAI: ...
 
 
 class SubagentToolsBuilder(Protocol):
-    """Builds function tools for configured non-Genie subagents."""
+    """Build function tools for configured non-MCP subagents."""
 
     def __call__(
         self,
@@ -46,7 +46,7 @@ class SubagentToolsBuilder(Protocol):
 
 
 class McpServersBuilder(Protocol):
-    """Builds MCP servers and unavailable tool list for current identity context."""
+    """Build MCP servers and unavailable-reason list for current request context."""
 
     def __call__(
         self,
@@ -56,18 +56,18 @@ class McpServersBuilder(Protocol):
 
 
 class FunctionToolWrapper(Protocol):
-    """Wraps an async callable as an agent function tool."""
+    """Wrap an async callable as an agent function tool."""
 
     def __call__(self, func: Any) -> Any: ...
 
 
 class McpServerFactory(Protocol):
-    """Builds an MCP server instance from connection details."""
+    """Build an MCP server instance from connection details."""
 
     def __call__(self, *, url: str, name: str, workspace_client: Any) -> McpServer: ...
 
 
 class MessageBus(Protocol):
-    """Publishes typed lifecycle events for agent request execution."""
+    """Publish typed lifecycle events for request-scoped execution."""
 
     def publish(self, event_type: str, payload: dict[str, object]) -> None: ...

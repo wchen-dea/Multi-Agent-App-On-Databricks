@@ -9,7 +9,7 @@ This project routes tools through typed subagent config plus Databricks app reso
 
 ## Step 1: Add Routing Configuration
 
-Edit `backend/domain/subagents.json`:
+Edit `backend/domain/subagents.<target>.json`:
 
 ```python
 {
@@ -35,6 +35,15 @@ Edit `backend/domain/subagents.json`:
     "type": "app",
     "endpoint": "<databricks-app-name>",
     "description": "App-based specialist"
+}
+```
+
+```python
+{
+  "name": "knowledge_assistant_product",
+  "type": "mcp",
+  "mcp_url": "/api/2.0/mcp/ai-search/<catalog>/<schema>/<index>",
+  "description": "AI Search MCP specialist"
 }
 ```
 
@@ -65,8 +74,7 @@ Serving endpoint example:
 
 ```bash
 databricks bundle validate -t <target> --profile <profile>
-databricks bundle deploy -t <target> --profile <profile>
-databricks bundle run multiagent-app --target <target>
+make redeploy TARGET=<target> APP_NAME=<app-name> PROFILE=<profile>
 ```
 
 ## Notes

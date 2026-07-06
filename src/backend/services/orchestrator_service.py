@@ -25,7 +25,19 @@ logger = logging.getLogger(__name__)
 
 
 def _format_unavailable_reason(name: str, exc: Exception) -> str:
-    """Format a concise unavailable reason with exception details."""
+    """Format a concise unavailable reason with exception details.
+
+    Args:
+        name: Display name of the unavailable dependency.
+        exc: Original exception raised during availability check.
+
+    Returns:
+        Human-readable unavailable reason including exception type and detail.
+
+    Notes:
+        Appends cause details when present and distinct from the top-level
+        exception message.
+    """
     detail = str(exc).strip() or "no error details"
     reason = f"{name} unavailable: {type(exc).__name__}: {detail}"
     cause = exc.__cause__ or exc.__context__
@@ -38,7 +50,16 @@ def _format_unavailable_reason(name: str, exc: Exception) -> str:
 
 @dataclass(frozen=True)
 class OrchestratorDependencies:
-    """Injectable dependencies for orchestration service functions."""
+    """Group injectable dependencies used by orchestration helpers.
+
+    Attributes:
+        trace_metadata_updater: Callable that records tool/auth metadata in the
+            active trace span.
+        function_tool_wrapper: Wrapper used to expose async callables as OpenAI
+            function tools.
+        mcp_server_factory: Factory used to construct MCP server descriptors.
+        message_bus: Event sink for tool and MCP lifecycle signals.
+    """
 
     trace_metadata_updater: TraceMetadataUpdater = mlflow.update_current_trace
     function_tool_wrapper: FunctionToolWrapper = function_tool
@@ -51,7 +72,16 @@ def _trace_tool_auth(
     has_user_identity: bool,
     deps: OrchestratorDependencies,
 ) -> None:
-    """Record per-tool auth selection metadata in the current trace."""
+    """Record per-tool auth selection metadata in the current trace.
+
+    Args:
+        subagent: Subagent being invoked.
+        has_user_identity: Whether request includes user identity for OBO.
+        deps: Orchestrator dependencies with trace updater.
+
+    Side Effects:
+        Writes tool auth metadata to the active trace span.
+    """
     deps.trace_metadata_updater(
         metadata={
             "auth.tool_name": subagent.tool_name,
@@ -66,7 +96,19 @@ def _select_tool_client(
     app_client: AsyncDatabricksOpenAI,
     obo_client: AsyncDatabricksOpenAI | None,
 ) -> AsyncDatabricksOpenAI:
-    """Select app or OBO client for a subagent and raise clear auth errors."""
+    """Select app or OBO client for a subagent.
+
+    Args:
+        subagent: Subagent configuration containing auth mode.
+        app_client: App-identity Databricks OpenAI client.
+        obo_client: Optional user-identity Databricks OpenAI client.
+
+    Returns:
+        The client authorized for the subagent's auth mode.
+
+    Raises:
+        UserError: If the subagent requires OBO and user identity is missing.
+    """
     if not subagent.is_obo:
         return app_client
     if obo_client is None:
@@ -83,7 +125,27 @@ def build_subagent_tools(
     obo_client: AsyncDatabricksOpenAI | None,
     deps: OrchestratorDependencies | None = None,
 ) -> list:
-    """Build callable tools for all non-Genie subagents."""
+    """Build function tools for non-MCP subagents.
+
+    Args:
+        subagents: Loaded and validated subagent configuration entries.
+        app_client: Databricks OpenAI client bound to app identity.
+        obo_client: Optional Databricks OpenAI client bound to forwarded user
+            identity for OBO-only tools.
+        deps: Optional dependency overrides for testing and instrumentation.
+
+    Returns:
+        A list of wrapped function tools that can be attached to the
+        orchestrator agent.
+
+    Raises:
+        UserError: If an OBO subagent is invoked but no user token-backed
+            client is available.
+
+    Side Effects:
+        Publishes tool start/success/failure events on the message bus and
+        updates trace metadata with auth selection context.
+    """
     dependencies = deps or OrchestratorDependencies()
     tools = []
 
@@ -151,7 +213,25 @@ def build_mcp_servers(
     identity_ctx: RequestIdentityContext,
     deps: OrchestratorDependencies | None = None,
 ) -> tuple[list[McpServer], list[str]]:
-    """Build Genie MCP server definitions from subagent configuration."""
+    """Build MCP server descriptors for Genie and generic MCP subagents.
+
+    Args:
+        subagents: Loaded and validated subagent configuration entries.
+        identity_ctx: Request-scoped app and user identity clients.
+        deps: Optional dependency overrides for testing and instrumentation.
+
+    Returns:
+        A tuple of:
+        - MCP server descriptors eligible for connection attempts.
+        - Human-readable unavailable reasons detected during pre-check.
+
+    Side Effects:
+        Publishes MCP registration/unavailable lifecycle events.
+
+    Notes:
+        OBO-configured MCP subagents are excluded when user identity is not
+        available in the request context.
+    """
     dependencies = deps or OrchestratorDependencies()
     servers: list[McpServer] = []
     unavailable: list[str] = []
@@ -211,7 +291,20 @@ def build_mcp_servers(
 async def connect_healthy_mcp_servers(
     stack: AsyncExitStack, servers: list[McpServer]
 ) -> tuple[list[McpServer], list[str]]:
-    """Connect MCP servers and return healthy servers plus unavailable names."""
+    """Connect MCP servers and retain only healthy endpoints.
+
+    Args:
+        stack: Async context stack used to own connected server lifecycles.
+        servers: Candidate MCP servers created from subagent configuration.
+
+    Returns:
+        A tuple of:
+        - Connected MCP servers that successfully responded to `list_tools`.
+        - Unavailable reason strings for failed connection attempts.
+
+    Side Effects:
+        Enters async contexts on successful servers and logs failures.
+    """
     healthy: list[McpServer] = []
     unavailable: list[str] = []
 
@@ -241,7 +334,24 @@ def create_orchestrator_agent(
     tools: list,
     unavailable_tools: list[str] | None = None,
 ) -> Agent:
-    """Create the orchestrator Agent with runtime-aware tool instructions."""
+    """Create an orchestrator agent with runtime-aware routing instructions.
+
+    Args:
+        model: Model identifier for orchestrator responses.
+        subagents: Active subagent configuration entries used to derive
+            tool-routing instructions.
+        mcp_servers: Connected MCP servers attached to the orchestrator.
+        tools: Wrapped function tools attached to the orchestrator.
+        unavailable_tools: Optional unavailable tool/runtime reasons injected
+            into instructions.
+
+    Returns:
+        A configured `Agent` instance ready for request handling.
+
+    Notes:
+        Instruction text enforces evidence requirements for tools marked with
+        `requires_evidence=true`.
+    """
     tool_lines: list[str] = []
     for subagent in subagents:
         if subagent.is_genie or subagent.is_mcp:

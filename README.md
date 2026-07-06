@@ -15,11 +15,13 @@ This repository provides an MVP foundation that can scale to enterprise use case
 
 ## Introduction Dependencies
 
-The current implementation depends on business semantics and AI metadata across governed tools and indexes:
+The current implementation depends on business semantics and AI metadata across governed tools and indexes.
+Runtime integrations are environment-specific through `src/backend/domain/subagents.<target>.json`.
 
-- Genie spaces: store_manager_genie, executive_genie, supply_chain_genie, sales_agent.
-- AI Search-backed indexes: product and article indexes, regional store indexes, and customer indexes.
-- Lakebase ODS-backed serving endpoints for operational and semantic retrieval workloads.
+Current dev target examples:
+
+- Genie space: `sales_agent` (space id configured in `subagents.dev.json`)
+- AI Search MCP index: `knowledge_assistant_product` using `/api/2.0/mcp/ai-search/dt_dev_gold/dwh_dbx/dim_product_search_index`
 
 ## Backend UC Security and Governance Guidelines
 
@@ -87,7 +89,7 @@ The runtime uses a hybrid authorization model:
 - App Authorization: tools execute with the app service principal identity.
 - User Authorization (OBO): tools execute with the forwarded user access token.
 
-Subagent authorization is configured in `src/backend/domain/subagents.json` using `auth_mode`:
+Subagent authorization is configured in target-specific files such as `src/backend/domain/subagents.dev.json` using `auth_mode`:
 
 - `auth_mode: app`
 - `auth_mode: obo`
@@ -97,7 +99,7 @@ Current defaults:
 - Genie subagents default to `obo` when not explicitly set.
 - Non-Genie subagents default to `app` when not explicitly set.
 
-The backend loads this file at startup and validates it with typed models in `src/backend/domain/subagent_config.py`.
+The backend loads an environment-specific file at startup and validates it with typed models in `src/backend/domain/subagent_config.py`.
 Override the path with `SUBAGENTS_CONFIG_PATH`.
 
 If an OBO tool is selected and no forwarded token is present, the runtime raises a clear user-facing authorization error instead of falling back silently.
@@ -123,6 +125,8 @@ The React UI supports session-scoped token commands for OBO testing:
 
 When set, the UI forwards the token to backend `/invocations` as the `x-forwarded-access-token` header.
 
+For non-interactive CLI/API tests against Databricks Apps, use `Authorization: Bearer <token>`.
+
 ## Core Architecture
 
 High-level request path:
@@ -131,7 +135,7 @@ High-level request path:
 2. Request reaches Databricks App endpoint.
 3. MLflow Agent Server dispatches invoke or stream handlers.
 4. Orchestrator selects tools and specialist agents.
-5. Tools query Genie or serving endpoints.
+5. Tools query Genie MCP, AI Search MCP indexes, or serving endpoints.
 6. Unified response is returned to the client.
 
 For architecture diagrams, see [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md).
@@ -168,10 +172,7 @@ uv run start-app
 Validate and deploy:
 
 ```bash
-uv run prepare-app-source
-databricks bundle validate -t dev --profile dev
-databricks bundle deploy -t dev --profile dev
-databricks bundle run multiagent-app --target dev
+make redeploy TARGET=dev APP_NAME=multiagent-app-dev PROFILE=DEFAULT
 ```
 
 If bundle deploy fails due to Terraform provider registry availability, use the operational fallback documented in [docs/operations/runbook.md](docs/operations/runbook.md).
@@ -199,6 +200,7 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 
 ## Documentation
 
+- [CONTRIBUTING.md](CONTRIBUTING.md): contributor workflow and project docstring standard.
 - [docs/product/business-specs.md](docs/product/business-specs.md): business requirements, constraints, and success metrics.
 - [docs/architecture/technical-specs.md](docs/architecture/technical-specs.md): centralized technical implementation map and cross-space contracts.
 - [docs/quality/evaluation-spec.md](docs/quality/evaluation-spec.md): datasets, scorers, KPI thresholds, and release-gate rules.
@@ -216,6 +218,14 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - [docs/architecture/system-design.md](docs/architecture/system-design.md): low-level module design and runtime behavior
 - [docs/architecture/design-artifacts/README.md](docs/architecture/design-artifacts/README.md): centralized concept, logical, and deployment design diagrams
 - [docs/operations/runbook.md](docs/operations/runbook.md): deployment, operations, incident handling, rollback
+
+## Makefile Helpers
+
+Useful operational commands:
+
+- `make redeploy TARGET=dev APP_NAME=multiagent-app-dev PROFILE=DEFAULT`
+- `make grant-runtime-permissions TARGET=dev APP_NAME=multiagent-app-dev PROFILE=DEFAULT`
+- `make query-dev TARGET=dev APP_NAME=multiagent-app-dev PROFILE=DEFAULT QUERY='top stores by revenue' QUERY_PERSONA=manager`
 
 ## Current Status
 

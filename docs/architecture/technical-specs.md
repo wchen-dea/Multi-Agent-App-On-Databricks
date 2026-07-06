@@ -21,14 +21,17 @@ Primary implementation:
 ## 2. Tool Routing Specification
 
 - Subagent configuration is externalized in JSON and validated through typed domain models.
-- Supported subagent kinds include genie, serving_endpoint, and app.
+- Supported subagent kinds include genie, serving_endpoint, app, and mcp.
 - Non-Genie function tools are generated dynamically from subagent metadata.
 - Genie integrations use MCP server registration and runtime health checks.
 
 Primary implementation:
 
 - src/backend/domain/subagent_config.py
-- src/backend/domain/subagents.json
+- src/backend/domain/subagents.dev.json
+- src/backend/domain/subagents.qa.json
+- src/backend/domain/subagents.stg.json
+- src/backend/domain/subagents.prod.json
 - src/backend/services/orchestrator_service.py
 
 ## 3. Authorization Specification

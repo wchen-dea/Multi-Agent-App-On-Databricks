@@ -12,6 +12,7 @@ This folder provides the primary TypeScript and React frontend used by the app r
   - `/clear-persona`
 - Persona forwarding via `custom_inputs.persona`.
 - Forwarded token header support (`x-forwarded-access-token` by default).
+- For direct non-interactive Databricks Apps invocation tests, use `Authorization: Bearer <token>`.
 - Session status footer and source/tool hint footer.
 
 ## Run Locally

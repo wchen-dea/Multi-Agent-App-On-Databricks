@@ -38,3 +38,5 @@ Request identity context is built per request. OBO-only tool paths fail clearly 
 ## Implementation Notes
 
 Forwarded token header: `x-forwarded-access-token`.
+
+For direct non-interactive Databricks Apps invocation tests, use `Authorization: Bearer <token>`.

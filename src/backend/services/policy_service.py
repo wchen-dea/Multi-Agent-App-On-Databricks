@@ -1,4 +1,4 @@
-"""Policy enforcement helpers for governed subagent access."""
+"""Provide policy enforcement helpers for governed subagent access."""
 
 from dataclasses import dataclass
 from typing import Literal
@@ -12,7 +12,14 @@ from backend.shared.runtime_utils import RequestIdentityContext
 
 @dataclass(frozen=True)
 class PolicyContext:
-    """Request-scoped context used by policy checks."""
+    """Request-scoped inputs consumed by governed policy checks.
+
+    Attributes:
+        persona: Normalized persona from request inputs or default settings.
+        has_user_identity: Whether forwarded user identity is available.
+        requested_tool: Explicit tool hint from request inputs, if provided.
+        request_confidence: Optional confidence score attached to the request.
+    """
 
     persona: str | None
     has_user_identity: bool
@@ -22,7 +29,15 @@ class PolicyContext:
 
 @dataclass(frozen=True)
 class PolicyDecision:
-    """Per-subagent policy outcome emitted for observability."""
+    """Represent a per-subagent policy allow/deny decision.
+
+    Attributes:
+        subagent_name: Subagent configuration name.
+        tool_name: Tool name exposed to orchestrator routing.
+        allowed: True when subagent is policy-eligible for this request.
+        reason_code: Machine-readable decision category.
+        reason: Human-readable explanation for auditing and diagnostics.
+    """
 
     subagent_name: str
     tool_name: str
@@ -42,7 +57,19 @@ def build_policy_context(
     request: ResponsesAgentRequest,
     identity_ctx: RequestIdentityContext,
 ) -> PolicyContext:
-    """Build policy context from request custom inputs and identity state."""
+    """Build policy context from request custom inputs and identity state.
+
+    Args:
+        request: Incoming Responses API request that may carry custom inputs.
+        identity_ctx: Request identity context used for OBO-aware policy rules.
+
+    Returns:
+        Normalized policy context used by subagent filtering.
+
+    Notes:
+        Persona defaults to configured runtime settings when not provided by
+        request custom inputs.
+    """
     persona: str | None = None
     default_persona = get_settings().default_request_persona.strip().lower() or None
     requested_tool: str | None = None
@@ -74,7 +101,21 @@ def filter_subagents_by_policy(
     subagents: list[SubagentConfig],
     context: PolicyContext,
 ) -> tuple[list[SubagentConfig], list[PolicyDecision]]:
-    """Filter subagents by request policy and return full policy decisions."""
+    """Filter subagents by policy and return full decision trace.
+
+    Args:
+        subagents: Candidate subagents to evaluate.
+        context: Request policy context.
+
+    Returns:
+        A tuple of:
+        - Subagents allowed for routing.
+        - Per-subagent allow/deny decisions for observability.
+
+    Notes:
+        Sensitive classifications require minimum confidence regardless of
+        auth mode.
+    """
     allowed: list[SubagentConfig] = []
     decisions: list[PolicyDecision] = []
     sensitive_threshold = 0.75
@@ -91,7 +132,7 @@ def filter_subagents_by_policy(
                     allowed=False,
                     reason_code="tool_not_requested",
                     reason=(
-                        f"{subagent.name} denied by policy (requested tool "
+                        f"{subagent.name} policy deny (requested tool "
                         f"{context.requested_tool!r} does not match)"
                     ),
                 )
@@ -106,7 +147,7 @@ def filter_subagents_by_policy(
                         tool_name=subagent.tool_name,
                         allowed=False,
                         reason_code="persona_required",
-                        reason=f"{subagent.name} denied by policy (persona is required)",
+                        reason=f"{subagent.name} policy deny (persona is required)",
                     )
                 )
                 continue
@@ -118,7 +159,7 @@ def filter_subagents_by_policy(
                         allowed=False,
                         reason_code="persona_not_allowed",
                         reason=(
-                            f"{subagent.name} denied by policy (persona {context.persona!r} "
+                            f"{subagent.name} policy deny (persona {context.persona!r} "
                             "is not allowed)"
                         ),
                     )
@@ -133,7 +174,7 @@ def filter_subagents_by_policy(
                     allowed=False,
                     reason_code="obo_identity_required",
                     reason=(
-                        f"{subagent.name} denied by policy (OBO identity is required for "
+                        f"{subagent.name} policy deny (OBO identity is required for "
                         "auth_mode=obo)"
                     ),
                 )
@@ -155,7 +196,7 @@ def filter_subagents_by_policy(
                     allowed=False,
                     reason_code="low_confidence_sensitive",
                     reason=(
-                        f"{subagent.name} denied by policy (confidence "
+                        f"{subagent.name} policy deny (confidence "
                         f"{context.request_confidence:.2f} is below threshold {sensitive_threshold:.2f} "
                         f"for {subagent.data_classification} data)"
                     ),
@@ -171,7 +212,7 @@ def filter_subagents_by_policy(
                 allowed=True,
                 reason_code="allowed",
                 reason=(
-                    f"{subagent.name} allowed by policy (auth_mode={subagent.auth_mode}, "
+                    f"{subagent.name} policy allow (auth_mode={subagent.auth_mode}, "
                     f"classification={subagent.data_classification})"
                 )
             )

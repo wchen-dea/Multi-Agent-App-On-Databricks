@@ -30,6 +30,7 @@ Authorization boundary:
 - App identity is used for app-auth tools.
 - User identity (OBO) is used for user-auth tools when a forwarded token is present.
 - OBO token propagation uses `x-forwarded-access-token` from UI to backend.
+- For non-interactive Databricks Apps invocation tests, use `Authorization: Bearer <token>`.
 
 Runtime stack:
 
@@ -152,15 +153,16 @@ flowchart TD
     OID --> O
 
     O --> G[Genie Sales Agent via MCP]
-    O --> K[Serving Endpoint Agent knowledge assistant]
-    O --> L[Serving Endpoint Agent lakebase vector storage]
+    O --> K[MCP AI Search Agent knowledge_assistant_product]
+    O --> L[Serving Endpoint Agent optional specialist]
 
     G --> M[MCP Genie Space]
-    K --> R1[Model Serving Responses API]
-    L --> R1
+    K --> R1[Databricks MCP AI Search]
+    L --> R2[Model Serving Responses API]
 
     M --> R[Response Aggregation]
     R1 --> R
+    R2 --> R
     ERR --> R
     R --> UI
     UI --> U

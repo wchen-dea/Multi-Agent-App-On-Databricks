@@ -12,6 +12,7 @@ Use this skill when the target resource does not exist yet.
 - Genie space (for `type: genie` routes)
 - Model Serving endpoint with Responses API support (for `type: serving_endpoint` routes)
 - Databricks App endpoint (for `type: app` routes)
+- AI Search MCP route (for `type: mcp` routes)
 
 ## Workflow
 
@@ -29,7 +30,7 @@ uv run discover-tools --profile <profile>
 - App specialist: app name
 
 4. Wire resources into project config:
-- `backend/domain/subagents.json`
+- `backend/domain/subagents.<target>.json`
 - `targets/<env>.yml` variables
 - `resources/multiagent_app.yml` app resource permissions
 

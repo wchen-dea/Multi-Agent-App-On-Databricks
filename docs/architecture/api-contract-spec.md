@@ -26,6 +26,7 @@ Optional fields:
 Optional headers:
 
 - `x-forwarded-access-token` for OBO tool execution
+- `Authorization: Bearer <token>` for direct non-interactive Databricks Apps invocation tests
 
 ## Invoke Response Contract
 

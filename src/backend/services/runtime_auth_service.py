@@ -1,4 +1,4 @@
-"""Build request-scoped runtime auth context for hybrid app/OBO execution."""
+"""Build request-scoped auth context for hybrid app/OBO execution."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,7 +36,16 @@ from backend.shared.runtime_utils import (
 
 @dataclass(frozen=True)
 class RuntimeAuthContext:
-    """Precomputed per-request auth/runtime dependencies for handler execution."""
+    """Bundle precomputed auth/runtime dependencies for request handling.
+
+    Attributes:
+        subagent_tools: Callable tools allowed for this request after policy and
+            auth filtering.
+        mcp_servers: MCP server descriptors available for this request.
+        unavailable_auth: Human-readable reasons for denied or unavailable
+            subagents (policy and auth/runtime).
+        policy_allowed_subagents: Subagents that passed policy checks.
+    """
 
     subagent_tools: list
     mcp_servers: list[McpServer]
@@ -46,7 +55,20 @@ class RuntimeAuthContext:
 
 @dataclass(frozen=True)
 class RuntimeAuthDependencies:
-    """Injectable dependencies for building runtime auth context."""
+    """Injectable collaborators used to build request-scoped auth context.
+
+    Attributes:
+        identity_context_provider: Builds request identity context for app and
+            optional user identities.
+        session_id_provider: Extracts trace session id from request metadata.
+        trace_metadata_updater: Emits auth metadata to the active trace.
+        obo_client_factory: Constructs OBO Databricks OpenAI clients.
+        subagent_tools_builder: Builds function tools for allowed subagents.
+        mcp_servers_builder: Builds MCP server definitions for allowed subagents.
+        policy_context_builder: Creates request policy context.
+        subagent_policy_filter: Applies policy decisions to subagent lists.
+        message_bus: Publishes auth and policy lifecycle events.
+    """
 
     identity_context_provider: IdentityContextProvider = build_request_identity_context
     session_id_provider: SessionIdProvider = get_session_id
@@ -69,7 +91,20 @@ def _build_trace_metadata(
     identity_ctx: RequestIdentityContext,
     deps: RuntimeAuthDependencies,
 ) -> dict[str, str]:
-    """Build and emit request trace metadata for hybrid app/OBO authorization."""
+    """Build and emit trace metadata for hybrid app/OBO authorization.
+
+    Args:
+        subagents: Active subagents considered for request execution.
+        request: Responses API request payload.
+        identity_ctx: Request identity context including user token presence.
+        deps: Runtime dependencies including tracing and message bus hooks.
+
+    Returns:
+        Normalized metadata dictionary emitted to tracing and message bus.
+
+    Side Effects:
+        Updates current trace metadata and publishes an auth metadata event.
+    """
     metadata: dict[str, str] = {
         "auth.user_token_present": str(identity_ctx.has_user_identity).lower(),
         "auth.subagents_total": str(len(subagents)),
@@ -89,7 +124,25 @@ def build_runtime_auth_context(
     app_client: AsyncDatabricksOpenAI,
     deps: RuntimeAuthDependencies | None = None,
 ) -> RuntimeAuthContext:
-    """Build request-scoped clients and tool wiring for hybrid auth execution."""
+    """Build request-scoped auth context, tool wiring, and policy outcomes.
+
+    Args:
+        request: Incoming Responses API request.
+        subagents: Configured subagents available to the orchestrator.
+        app_client: App-identity Databricks OpenAI client.
+        deps: Optional dependency overrides for testing and instrumentation.
+
+    Returns:
+        A request-scoped auth context containing allowed tools, MCP servers,
+        and unavailable reasons.
+
+    Side Effects:
+        Publishes policy/auth lifecycle events and updates trace metadata.
+
+    Notes:
+        OBO clients are created only when user identity is present in the
+        request context.
+    """
     dependencies = deps or RuntimeAuthDependencies()
     identity_ctx = dependencies.identity_context_provider()
     policy_ctx = dependencies.policy_context_builder(request, identity_ctx)

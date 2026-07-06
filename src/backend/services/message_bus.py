@@ -1,4 +1,4 @@
-"""Message bus implementations for agent lifecycle event publishing."""
+"""Provide message bus implementations for request-scoped lifecycle event publishing."""
 
 import json
 import logging
@@ -17,22 +17,50 @@ logger = logging.getLogger(__name__)
 
 
 class NoOpMessageBus:
-    """Default no-op message bus used when event emission is not configured."""
+    """Discard all events when message bus emission is disabled."""
 
     def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        """Drop a lifecycle event without further processing.
+
+        Args:
+            event_type: Event type identifier.
+            payload: Event payload.
+
+        Side Effects:
+            Discards all event data.
+        """
         del event_type, payload
 
 
 class StructuredLoggingMessageBus:
-    """Message bus that publishes events as structured log records."""
+    """Publish events as structured JSON log records."""
 
     def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        """Publish a lifecycle event to structured logs.
+
+        Args:
+            event_type: Event type identifier.
+            payload: Event payload.
+
+        Side Effects:
+            Emits a JSON-formatted log record.
+        """
         event = _build_event(event_type, payload)
         logger.info("message_bus_event %s", json.dumps(event, sort_keys=True, default=str))
 
 
 class KafkaMessageBus:
-    """Kafka-backed message bus for production-grade event transport."""
+    """Publish lifecycle events to Kafka.
+
+    Args:
+        bootstrap_servers: Kafka bootstrap servers list.
+        topic: Topic used for event publishing.
+        client_id: Kafka producer client id.
+
+    Raises:
+        ValueError: If bootstrap servers are missing.
+        RuntimeError: If kafka dependency is not installed.
+    """
 
     def __init__(self, bootstrap_servers: str, topic: str, client_id: str) -> None:
         if not bootstrap_servers.strip():
@@ -55,6 +83,15 @@ class KafkaMessageBus:
         self._topic = topic
 
     def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        """Publish a lifecycle event to Kafka.
+
+        Args:
+            event_type: Event type identifier.
+            payload: Event payload.
+
+        Side Effects:
+            Sends an event message to the configured Kafka topic.
+        """
         event = _build_event(event_type, payload)
         self._producer.produce(
             self._topic,
@@ -65,7 +102,16 @@ class KafkaMessageBus:
 
 
 class RabbitMQMessageBus:
-    """RabbitMQ-backed message bus for lifecycle event transport."""
+    """Publish lifecycle events to RabbitMQ topic exchange.
+
+    Args:
+        url: AMQP connection URL.
+        exchange: Exchange name used for topic routing.
+
+    Raises:
+        ValueError: If connection URL is missing.
+        RuntimeError: If pika dependency is not installed.
+    """
 
     def __init__(self, url: str, exchange: str) -> None:
         if not url.strip():
@@ -100,6 +146,15 @@ class RabbitMQMessageBus:
             )
 
     def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        """Publish a lifecycle event to RabbitMQ.
+
+        Args:
+            event_type: Event type identifier.
+            payload: Event payload.
+
+        Side Effects:
+            Ensures an open AMQP connection and publishes to the topic exchange.
+        """
         self._ensure_connection()
         event = _build_event(event_type, payload)
         self._channel.basic_publish(
@@ -113,12 +168,29 @@ class RabbitMQMessageBus:
         )
 
     def close(self) -> None:
+        """Close the RabbitMQ connection when it is open.
+
+        Side Effects:
+            Closes the underlying AMQP connection.
+        """
         if self._conn and not self._conn.is_closed:
             self._conn.close()
 
 
 class UcAuditTableMessageBus:
-    """Persist lifecycle events into a UC-governed Delta table via SQL warehouse."""
+    """Persist lifecycle events to a UC-governed Delta audit table.
+
+    Args:
+        warehouse_id: SQL warehouse id used for statement execution.
+        catalog: UC catalog name containing the audit table.
+        schema: UC schema name containing the audit table.
+        table: UC table name for audit events.
+        fail_open: When true, drop failed writes and continue processing.
+        workspace_client: Optional workspace client override.
+
+    Raises:
+        ValueError: If required UC or warehouse configuration is missing.
+    """
 
     def __init__(
         self,
@@ -152,6 +224,15 @@ class UcAuditTableMessageBus:
         return f"{self._catalog}.{self._schema}.{self._table}"
 
     def _execute(self, statement: str, parameters: list[StatementParameterListItem]) -> None:
+        """Execute a parameterized SQL statement in the UC audit context.
+
+        Args:
+            statement: SQL statement text.
+            parameters: SQL statement parameters.
+
+        Side Effects:
+            Executes a statement through the Databricks SQL statement API.
+        """
         self._workspace_client.statement_execution.execute_statement(
             statement=statement,
             warehouse_id=self._warehouse_id,
@@ -162,6 +243,11 @@ class UcAuditTableMessageBus:
         )
 
     def _ensure_table(self) -> None:
+        """Create audit schema/table if they do not already exist.
+
+        Side Effects:
+            Issues DDL statements for schema and table creation.
+        """
         self._workspace_client.statement_execution.execute_statement(
             statement=f"CREATE SCHEMA IF NOT EXISTS {self._catalog}.{self._schema}",
             warehouse_id=self._warehouse_id,
@@ -182,6 +268,21 @@ class UcAuditTableMessageBus:
         )
 
     def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        """Persist a lifecycle event to the UC audit table.
+
+        Args:
+            event_type: Event type identifier.
+            payload: Event payload.
+
+        Raises:
+            Exception: Re-raises write failures when fail-open is disabled.
+
+        Side Effects:
+            Inserts an event row into the configured UC Delta table.
+
+        Notes:
+            When fail-open is enabled, write errors are logged and dropped.
+        """
         event = _build_event(event_type, payload)
         try:
             self._execute(
@@ -214,7 +315,15 @@ class UcAuditTableMessageBus:
 
 
 def _build_event(event_type: str, payload: dict[str, object]) -> dict[str, object]:
-    """Create a normalized event envelope for all bus backends."""
+    """Create a normalized event envelope for all bus backends.
+
+    Args:
+        event_type: Event type identifier.
+        payload: Event-specific payload.
+
+    Returns:
+        Event envelope with id, type, timestamp, and payload.
+    """
     return {
         "event_id": str(uuid4()),
         "event_type": event_type,
@@ -224,14 +333,36 @@ def _build_event(event_type: str, payload: dict[str, object]) -> dict[str, objec
 
 
 def _validate_identifier(value: str, env_name: str) -> str:
-    """Validate SQL identifier fragments to prevent malformed DDL/DML."""
+    """Validate SQL identifier fragments for safe DDL/DML composition.
+
+    Args:
+        value: Candidate identifier value.
+        env_name: Environment variable name used in error messages.
+
+    Returns:
+        The validated identifier string.
+
+    Raises:
+        ValueError: If identifier violates allowed pattern.
+    """
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
         raise ValueError(f"{env_name} has invalid identifier: {value!r}")
     return value
 
 
 def default_message_bus(settings: AppSettings | None = None) -> MessageBus:
-    """Return a configured message bus implementation for runtime use."""
+    """Create the configured message bus implementation for runtime use.
+
+    Args:
+        settings: Optional preloaded app settings.
+
+    Returns:
+        A message bus implementation selected from runtime configuration.
+
+    Notes:
+        When fail-open is enabled and backend initialization fails, the function
+        falls back to structured logging.
+    """
     cfg = settings or get_settings()
     backend = cfg.message_bus_backend.strip().lower()
 

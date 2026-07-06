@@ -41,10 +41,33 @@ class CliError(RuntimeError):
 
 
 class DatabricksCli:
+    """Lightweight Databricks CLI runner with optional JSON decoding."""
+
     def __init__(self, profile: str):
+        """Store CLI profile used for all Databricks commands.
+
+        Args:
+            profile: Databricks CLI profile name.
+        """
         self.profile = profile
 
     def run(self, args: list[str], expect_json: bool = False, check: bool = True) -> Any:
+        """Execute a Databricks CLI command.
+
+        Args:
+            args: Command arguments after the `databricks` executable.
+            expect_json: When true, parse and return JSON output.
+            check: When true, raise on non-zero exit code.
+
+        Returns:
+            A `subprocess.CompletedProcess` for non-JSON calls, parsed JSON
+            content for JSON calls, or `None` for JSON calls that failed with
+            `check=False`.
+
+        Raises:
+            CliError: If command execution fails with `check=True` or JSON
+                decoding fails.
+        """
         cmd = ["databricks", *args, "--profile", self.profile]
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if check and result.returncode != 0:
@@ -61,7 +84,23 @@ class DatabricksCli:
 
 
 class PermissionManager:
+    """Resolve and grant runtime permissions for the app service principal.
+
+    This manager discovers target-scoped resources, validates securables, and
+    applies Databricks permissions plus Unity Catalog grants needed by runtime
+    subagents.
+    """
+
     def __init__(self, cli: DatabricksCli, target: str, app_name: str, dry_run: bool, fail_open: bool):
+        """Initialize permission management context.
+
+        Args:
+            cli: Databricks CLI wrapper.
+            target: Deployment target (`dev`, `qa`, `stg`, or `prod`).
+            app_name: Databricks app name used to resolve app principal.
+            dry_run: If true, print planned actions without applying grants.
+            fail_open: If true, return success even when some grants fail.
+        """
         self.cli = cli
         self.target = target
         self.app_name = app_name
@@ -89,6 +128,17 @@ class PermissionManager:
             raise CliError(f"Could not read variables from {target_file}") from exc
 
     def _read_subagent_resource_hints(self) -> tuple[list[str], list[str], list[tuple[str, str, str]]]:
+        """Extract resource hints from target subagent configuration.
+
+        Returns:
+            A tuple of:
+            - Genie space ids.
+            - Serving endpoint names.
+            - AI Search MCP triples as `(catalog, schema, index)`.
+
+        Raises:
+            CliError: If the subagent file exists but contains invalid JSON.
+        """
         config_file = Path("src/backend/domain") / f"subagents.{self.target}.json"
         if not config_file.exists():
             return [], [], []
@@ -127,6 +177,15 @@ class PermissionManager:
         )
 
     def _parse_ai_search_mcp_url(self, mcp_url: str) -> tuple[str, str, str] | None:
+        """Parse an AI Search MCP URL into `(catalog, schema, index)`.
+
+        Args:
+            mcp_url: MCP route expected in `/api/2.0/mcp/ai-search/...` format.
+
+        Returns:
+            Parsed `(catalog, schema, index)` when valid and non-placeholder,
+            otherwise `None`.
+        """
         parts = [part for part in mcp_url.strip().split("/") if part]
         # Expected format:
         # /api/2.0/mcp/ai-search/<catalog>/<schema>/<index>
@@ -357,6 +416,17 @@ class PermissionManager:
         ai_search_securables: list[tuple[str, str, list[str]]],
         sp_client_id: str,
     ) -> None:
+        """Grant UC privileges needed by AI Search-backed MCP tools.
+
+        Args:
+            ai_search_securables: Validated securables in
+                `(catalog, schema, [tables...])` form.
+            sp_client_id: App service principal client id.
+
+        Side Effects:
+            Applies `USE_CATALOG`, `USE_SCHEMA`, and `SELECT` grants through
+            Databricks grants APIs.
+        """
         if not ai_search_securables:
             print("INFO: No validated AI Search UC securables to grant.")
             return
@@ -498,6 +568,19 @@ class PermissionManager:
                 self._warn_or_fail(f"Failed to grant vector search endpoint CAN_USE: {endpoint}")
 
     def run(self) -> int:
+        """Execute permission discovery, validation, and grant application.
+
+        Returns:
+            Exit code `0` on success. Returns `1` when failures are detected and
+            `fail_open` is disabled.
+
+        Side Effects:
+            Calls Databricks APIs/CLI to update permissions and grants.
+
+        Notes:
+            The workflow is designed to be idempotent when rerun against the
+            same target configuration.
+        """
         target_vars = self._read_target_vars()
         sp_client_id = self._resolve_app_sp_client_id()
 
@@ -592,6 +675,7 @@ class PermissionManager:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for runtime permission grants."""
     parser = argparse.ArgumentParser(description="Grant runtime permissions to app service principal.")
     parser.add_argument("--app-name", required=True, help="Databricks app name")
     parser.add_argument("--target", required=True, choices=list(SUPPORTED_TARGETS), help="Bundle target")
@@ -606,6 +690,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run permission manager and exit with its status code."""
     args = parse_args()
     cli = DatabricksCli(profile=args.profile)
     manager = PermissionManager(

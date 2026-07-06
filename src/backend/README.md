@@ -31,7 +31,7 @@ Primary entrypoint:
   - `interfaces.py`: service protocols for dependency injection.
 - `src/backend/domain/`
   - `subagent_config.py`: typed config model and validation.
-  - `subagents.json`: canonical subagent/tool registry config.
+  - `subagents.<target>.json`: environment-specific subagent/tool registry config.
 - `src/backend/shared/`
   - `settings.py`: typed runtime settings.
   - `runtime_utils.py`: auth/request helper utilities.
@@ -73,7 +73,7 @@ Most common edit locations:
 
 Tip:
 
-- Keep `src/backend/domain/subagents.json` and runtime behavior aligned when adding/changing tools.
+- Keep `src/backend/domain/subagents.<target>.json` and runtime behavior aligned when adding/changing tools.
 
 ## Key Environment Variables
 
@@ -133,6 +133,9 @@ Operational focus areas:
 - OBO route unavailable:
   - verify `x-forwarded-access-token` is forwarded from frontend.
   - verify user identity has required data permissions.
+- Non-interactive Databricks Apps invocation tests:
+  - use `Authorization: Bearer <token>` for direct `/invocations` calls.
+  - do not rely on `x-forwarded-access-token` in raw curl flows, which can enter OIDC redirect paths.
 - Policy or guardrail blocks:
   - inspect backend logs for deny reasons and guardrail reason codes.
 - Message bus backend initialization failure:

@@ -296,6 +296,14 @@ Use UI session commands:
 
 The UI forwards the token as `x-forwarded-access-token` on `/invocations` requests.
 
+For non-interactive CLI tests against Databricks Apps `/invocations`, use `Authorization: Bearer <token>`.
+
+Example helper:
+
+```bash
+make query-dev TARGET=dev APP_NAME=multiagent-app-dev PROFILE=DEFAULT QUERY='top stores by revenue' QUERY_PERSONA=manager
+```
+
 ### Incident Triage
 
 1. Identify impacted environment.

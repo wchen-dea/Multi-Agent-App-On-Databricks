@@ -1,6 +1,6 @@
 # Model and Tool Registry
 
-Inventory of active model endpoints, tools, and Genie spaces.
+Inventory of active model endpoints, tools, Genie spaces, and MCP routes.
 
 ## Purpose
 
@@ -9,7 +9,7 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 ## Registry Fields
 
 - id
-- type (genie, serving_endpoint, app, model)
+- type (genie, serving_endpoint, app, mcp, model)
 - runtime name
 - owner
 - auth mode
@@ -18,71 +18,47 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 - environment availability
 - status (active, deprecated, disabled)
 
-## Active Genie Spaces
+## Configuration Source
+
+- Runtime subagent config is environment-specific:
+	- `src/backend/domain/subagents.dev.json`
+	- `src/backend/domain/subagents.qa.json`
+	- `src/backend/domain/subagents.stg.json`
+	- `src/backend/domain/subagents.prod.json`
+
+## Active Genie Spaces (Dev)
 
 ### sales_agent
 
 - Type: genie
 - Runtime name: `sales_agent`
-- Space ID source: `src/backend/domain/subagents.json`
-- Auth mode: obo
+- Space ID source: `src/backend/domain/subagents.dev.json`
+- Auth mode: app
 - Classification: confidential
 - Owner: sales-analytics
 - Status: active
 
-### store_manager_genie
+## Active MCP Routes (Dev)
 
-- Type: genie
-- Runtime name: `store_manager_genie`
-- Space ID source: `src/backend/domain/subagents.json`
-- Auth mode: obo
-- Classification: confidential
-- Owner: store-operations
-- Status: active
+### knowledge_assistant_product
 
-### executive_genie
-
-- Type: genie
-- Runtime name: `executive_genie`
-- Space ID source: `src/backend/domain/subagents.json`
-- Auth mode: obo
-- Classification: restricted
-- Owner: executive-analytics
-- Status: active
-
-### supply_chain_genie
-
-- Type: genie
-- Runtime name: `supply_chain_genie`
-- Space ID source: `src/backend/domain/subagents.json`
-- Auth mode: obo
-- Classification: confidential
-- Owner: supply-chain-analytics
-- Status: active
-
-## Active Serving Endpoints
-
-### knowledge_assistant
-
-- Type: serving_endpoint
-- Runtime name: `knowledge_assistant`
+- Type: mcp
+- Runtime name: `knowledge_assistant_product`
+- MCP URL: `/api/2.0/mcp/ai-search/dt_dev_gold/dwh_dbx/dim_product_search_index`
+- Backing AI Search endpoint: `knowledge-assistant-product-ep`
 - Auth mode: app
 - Classification: internal
 - Owner: platform-docs
 - Status: active
 
-### lakebase_vector
+## Other Environments
 
-- Type: serving_endpoint
-- Runtime name: `lakebase_vector_storage`
-- Auth mode: app
-- Classification: internal
-- Owner: data-platform
-- Status: active
+- QA/STG/PROD currently include additional placeholder and serving-endpoint entries.
+- Entries with placeholder identifiers are skipped at runtime until concrete IDs are configured.
 
 ## Maintenance Rules
 
-- Registry updates are required whenever `src/backend/domain/subagents.json` changes.
+- Registry updates are required whenever any `src/backend/domain/subagents.<target>.json` changes.
 - Deprecated entries must include migration guidance and removal timeline.
 - Runtime, bundle variables, and app permissions must remain consistent.
 
