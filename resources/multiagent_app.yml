@@ -51,6 +51,8 @@ resources:
           value: ${var.chat_proxy_timeout_seconds}
         - name: SUBAGENTS_CONFIG_PATH
           value: ${var.subagents_config_path}
+        - name: DEFAULT_REQUEST_PERSONA
+          value: ${var.default_request_persona}
         - name: MLFLOW_EXPERIMENT_ID
           value: ${var.mlflow_experiment_id}
         - name: MESSAGE_BUS_BACKEND

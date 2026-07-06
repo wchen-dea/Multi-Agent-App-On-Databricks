@@ -141,7 +141,11 @@ jobs:
           done
 
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
-          echo "APP_NAME=multiagent-app-$TARGET" >> "$GITHUB_ENV"
+          if [ "$TARGET" = "prod" ]; then
+            echo "APP_NAME=multiagent-app" >> "$GITHUB_ENV"
+          else
+            echo "APP_NAME=multiagent-app-$TARGET" >> "$GITHUB_ENV"
+          fi
           echo "DATABRICKS_AUTH_TYPE=oauth-m2m" >> "$GITHUB_ENV"
           echo "$HOME/.databricks/bin" >> "$GITHUB_PATH"
 
@@ -160,35 +164,7 @@ jobs:
           EVAL_REQUIRE_ALL_KPIS: "${{ vars.EVAL_REQUIRE_ALL_KPIS || 'true' }}"
         run: uv run agent-evaluate
 
-      - name: Build app-source payload
-        run: make build-app-source
-
-      - name: Validate bundle
-        run: make validate TARGET="$TARGET"
-
-      - name: Try bundle deploy (non-blocking)
-        run: |
-          if ! make bundle-deploy TARGET="$TARGET"; then
-            echo "bundle deploy failed (likely transient Terraform provider connectivity)."
-            echo "Continuing with app-source payload import + apps deploy fallback."
-          fi
-
-      - name: Import app-source and deploy
+      - name: Full redeploy
         run: |
           set -euo pipefail
-          if ! make import TARGET="$TARGET" APP_NAME="$APP_NAME"; then
-            echo "import failed for app-source payload" >&2
-            exit 1
-          fi
-
-          if ! make deploy TARGET="$TARGET" APP_NAME="$APP_NAME"; then
-            echo "apps deploy failed; retrying once after ensure-running"
-            make ensure-running TARGET="$TARGET" APP_NAME="$APP_NAME"
-            make deploy TARGET="$TARGET" APP_NAME="$APP_NAME"
-          fi
-
-      - name: Health check
-        run: make health TARGET="$TARGET" APP_NAME="$APP_NAME"
-
-      - name: Smoke check
-        run: make smoke TARGET="$TARGET" APP_NAME="$APP_NAME"
+          make redeploy TARGET="$TARGET" APP_NAME="$APP_NAME"

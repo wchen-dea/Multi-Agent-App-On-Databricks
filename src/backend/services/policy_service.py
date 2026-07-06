@@ -6,6 +6,7 @@ from typing import Literal
 from mlflow.types.responses import ResponsesAgentRequest
 
 from backend.domain.subagent_config import SubagentConfig
+from backend.shared.settings import get_settings
 from backend.shared.runtime_utils import RequestIdentityContext
 
 
@@ -43,6 +44,7 @@ def build_policy_context(
 ) -> PolicyContext:
     """Build policy context from request custom inputs and identity state."""
     persona: str | None = None
+    default_persona = get_settings().default_request_persona.strip().lower() or None
     requested_tool: str | None = None
     request_confidence: float | None = None
     custom_inputs = request.custom_inputs
@@ -56,6 +58,9 @@ def build_policy_context(
         raw_confidence = custom_inputs.get("confidence")
         if isinstance(raw_confidence, (int, float)):
             request_confidence = float(raw_confidence)
+
+    if persona is None:
+        persona = default_persona
 
     return PolicyContext(
         persona=persona,

@@ -2,7 +2,7 @@
   {
     "name": "sales_agent",
     "type": "genie",
-    "auth_mode": "obo",
+    "auth_mode": "app",
     "data_classification": "confidential",
     "owner": "sales-analytics",
     "freshness_sla": "15m",

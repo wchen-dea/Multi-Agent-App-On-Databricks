@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from backend.domain.subagent_config import SubagentConfig
 from backend.services.policy_service import build_policy_context, filter_subagents_by_policy
+from backend.shared.settings import get_settings
 from mlflow.types.responses import ResponsesAgentRequest
 
 
@@ -41,6 +42,17 @@ def test_build_policy_context_reads_persona():
     assert ctx.has_user_identity is True
     assert ctx.requested_tool == "query_public_docs"
     assert ctx.request_confidence == 0.9
+
+
+def test_build_policy_context_uses_default_persona(monkeypatch):
+    monkeypatch.setenv("DEFAULT_REQUEST_PERSONA", "manager")
+    get_settings.cache_clear()
+    request = ResponsesAgentRequest(input=[])
+    identity_ctx = SimpleNamespace(has_user_identity=True)
+
+    ctx = build_policy_context(request, identity_ctx)
+
+    assert ctx.persona == "manager"
 
 
 def test_filter_subagents_by_policy_blocks_disallowed_persona():

@@ -28,6 +28,9 @@ variables:
   subagents_config_path:
     description: Optional runtime path to an alternate subagents JSON config
     default: ""
+  default_request_persona:
+    description: Optional default persona used when request does not provide custom_inputs.persona
+    default: ""
   genie_space_id:
     description: Genie space ID for the current environment
     default: ""
