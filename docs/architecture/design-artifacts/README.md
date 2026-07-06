@@ -24,6 +24,8 @@ For each phase, artifacts are split into:
 5. [04-logical-detailed.md](04-logical-detailed.md)
 6. [05-deployment-high-level.md](05-deployment-high-level.md)
 7. [06-deployment-detailed.md](06-deployment-detailed.md)
+8. [07-request-execution-flow-class-diagram.md](07-request-execution-flow-class-diagram.md)
+9. [08-backend-class-diagram-as-is.md](08-backend-class-diagram-as-is.md)
 
 ## Coverage Matrix
 

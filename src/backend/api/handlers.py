@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import AsyncExitStack
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator, cast
 
 import mlflow
@@ -33,6 +34,259 @@ cast(Any, mlflow).openai.autolog()
 logger = logging.getLogger(__name__)
 if not SUBAGENTS:
     logger.warning("No subagents configured. The orchestrator will run without routing tools.")
+
+
+@dataclass(frozen=True)
+class RequestStage:
+    """Represent prepared request inputs for pipeline execution."""
+
+    request: ResponsesAgentRequest
+    runtime_auth: Any
+    messages: list[Any]
+
+
+@dataclass(frozen=True)
+class ConnectedStage:
+    """Represent connected tooling and agent state for request execution."""
+
+    runtime_auth: Any
+    unavailable: list[str]
+    agent: Any
+
+
+@dataclass(frozen=True)
+class InvokeFinalizedStage:
+    """Represent finalized invoke output and metadata after guardrails."""
+
+    output_items: list[dict[str, Any]]
+    unavailable: list[str]
+
+
+@dataclass(frozen=True)
+class StreamExecutedStage:
+    """Represent buffered stream output prior to guardrail finalization."""
+
+    event_count: int
+    buffered_events: list[Any]
+    buffered_payloads: list[dict[str, Any]]
+    streamed_text_parts: list[str]
+
+
+@dataclass(frozen=True)
+class StreamFinalizedStage:
+    """Represent finalized stream output and guardrail decision."""
+
+    event_count: int
+    buffered_events: list[Any]
+    source_suffix: str
+    unavailable: list[str]
+    guardrail_blocked: bool
+    guardrail_reasons: tuple[str, ...]
+
+
+def _prepare_request_stage(request: ResponsesAgentRequest) -> RequestStage:
+    """Build request-scoped auth context and normalized messages.
+
+    Args:
+        request: Incoming Responses API request.
+
+    Returns:
+        Prepared request stage with runtime auth context and messages.
+    """
+    runtime_auth = HANDLER_DEPS.runtime_auth_builder(request, SUBAGENTS, _client)
+    messages = to_messages(request.input)
+    return RequestStage(request=request, runtime_auth=runtime_auth, messages=messages)
+
+
+async def _connect_request_stage(
+    stack: AsyncExitStack,
+    prepared: RequestStage,
+) -> ConnectedStage:
+    """Connect MCP servers and build the orchestrator agent.
+
+    Args:
+        stack: Async context stack used for MCP server lifecycle.
+        prepared: Prepared request stage.
+
+    Returns:
+        Connected stage with orchestrator agent and unavailable details.
+    """
+    servers, unavailable_health = await HANDLER_DEPS.mcp_connector(
+        stack, prepared.runtime_auth.mcp_servers
+    )
+    unavailable = prepared.runtime_auth.unavailable_auth + unavailable_health
+    agent = HANDLER_DEPS.orchestrator_factory(
+        SETTINGS.orchestrator_model,
+        SUBAGENTS,
+        servers,
+        prepared.runtime_auth.subagent_tools,
+        unavailable,
+    )
+    return ConnectedStage(
+        runtime_auth=prepared.runtime_auth,
+        unavailable=unavailable,
+        agent=agent,
+    )
+
+
+async def _execute_invoke_stage(
+    connected: ConnectedStage,
+    messages: list[Any],
+) -> Any:
+    """Run the orchestrator agent for invoke.
+
+    Args:
+        connected: Connected invoke stage containing orchestrator agent.
+        messages: Normalized request messages.
+
+    Returns:
+        Runner result containing output items.
+    """
+    return await Runner.run(connected.agent, messages)
+
+
+def _finalize_invoke_stage(
+    result: Any,
+    connected: ConnectedStage,
+) -> InvokeFinalizedStage:
+    """Apply governed source formatting and guardrails to invoke output.
+
+    Args:
+        result: Runner output from agent execution.
+        connected: Connected invoke stage with runtime auth context.
+
+    Returns:
+        Finalized invoke stage containing output items and unavailable details.
+
+    Raises:
+        UserError: If response is blocked by guardrails.
+    """
+    response_text = _response_text_from_items(result.new_items)
+    output_items = cast(Any, [item.to_input_item() for item in result.new_items])
+    guardrail_subagents = _guardrail_scope_subagents(
+        output_items,
+        connected.runtime_auth.policy_allowed_subagents,
+    )
+    source_suffix = _governed_source_suffix_with_fallback(
+        output_items,
+        guardrail_subagents,
+    )
+    if source_suffix and source_suffix not in response_text:
+        response_text += source_suffix
+        output_items = _append_source_to_output_items(output_items, source_suffix)
+    guardrail = HANDLER_DEPS.guardrails_evaluator(
+        response_text,
+        guardrail_subagents,
+    )
+    if guardrail.blocked:
+        HANDLER_DEPS.message_bus.publish(
+            "response.guardrail.blocked",
+            {
+                "reasons": list(guardrail.reasons),
+            },
+        )
+        raise UserError(
+            "Response blocked by guardrails: " + ", ".join(guardrail.reasons)
+        )
+    HANDLER_DEPS.message_bus.publish(
+        "response.guardrail.passed",
+        {
+            "reasons": list(guardrail.reasons),
+        },
+    )
+    return InvokeFinalizedStage(
+        output_items=output_items,
+        unavailable=connected.unavailable,
+    )
+
+
+async def _execute_stream_stage(
+    connected: ConnectedStage,
+    messages: list[Any],
+) -> StreamExecutedStage:
+    """Run streamed orchestration and buffer output events for finalization.
+
+    Args:
+        connected: Connected stage containing orchestrator agent.
+        messages: Normalized request messages.
+
+    Returns:
+        Buffered stream execution stage for downstream guardrail processing.
+    """
+    result = Runner.run_streamed(connected.agent, input=messages)
+    event_count = 0
+    buffered_events: list[Any] = []
+    streamed_text_parts: list[str] = []
+    async for event in process_agent_stream_events(result.stream_events()):
+        event_count += 1
+        buffered_events.append(event)
+        text = _text_from_stream_event(event)
+        if text:
+            streamed_text_parts.append(text)
+
+    buffered_payloads = [event for event in buffered_events if isinstance(event, dict)]
+    return StreamExecutedStage(
+        event_count=event_count,
+        buffered_events=buffered_events,
+        buffered_payloads=buffered_payloads,
+        streamed_text_parts=streamed_text_parts,
+    )
+
+
+def _finalize_stream_stage(
+    executed: StreamExecutedStage,
+    connected: ConnectedStage,
+) -> StreamFinalizedStage:
+    """Apply governed source handling and guardrails to buffered stream output.
+
+    Args:
+        executed: Buffered stream execution stage.
+        connected: Connected stage with runtime auth context.
+
+    Returns:
+        Finalized stream stage with guardrail decision and output metadata.
+    """
+    guardrail_subagents = _guardrail_scope_subagents(
+        executed.buffered_payloads,
+        connected.runtime_auth.policy_allowed_subagents,
+    )
+    source_suffix = _governed_source_suffix_with_fallback(
+        executed.buffered_payloads,
+        guardrail_subagents,
+    )
+    streamed_text_parts = list(executed.streamed_text_parts)
+    if source_suffix and source_suffix not in "\n".join(streamed_text_parts):
+        streamed_text_parts.append(source_suffix)
+
+    guardrail = HANDLER_DEPS.guardrails_evaluator(
+        "\n".join(streamed_text_parts),
+        guardrail_subagents,
+    )
+    if guardrail.blocked:
+        HANDLER_DEPS.message_bus.publish(
+            "response.guardrail.blocked",
+            {
+                "reasons": list(guardrail.reasons),
+                "mode": "stream",
+            },
+        )
+    else:
+        HANDLER_DEPS.message_bus.publish(
+            "response.guardrail.passed",
+            {
+                "reasons": list(guardrail.reasons),
+                "mode": "stream",
+            },
+        )
+
+    return StreamFinalizedStage(
+        event_count=executed.event_count,
+        buffered_events=executed.buffered_events,
+        source_suffix=source_suffix,
+        unavailable=connected.unavailable,
+        guardrail_blocked=guardrail.blocked,
+        guardrail_reasons=guardrail.reasons,
+    )
 
 
 def _response_text_from_items(items: list[Any]) -> str:
@@ -263,65 +517,22 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
             "subagents_total": len(SUBAGENTS),
         },
     )
-    runtime_auth = HANDLER_DEPS.runtime_auth_builder(request, SUBAGENTS, _client)
+    prepared = _prepare_request_stage(request)
 
     try:
         async with AsyncExitStack() as stack:
-            servers, unavailable_health = await HANDLER_DEPS.mcp_connector(
-                stack, runtime_auth.mcp_servers
-            )
-            unavailable = runtime_auth.unavailable_auth + unavailable_health
-            agent = HANDLER_DEPS.orchestrator_factory(
-                SETTINGS.orchestrator_model,
-                SUBAGENTS,
-                servers,
-                runtime_auth.subagent_tools,
-                unavailable,
-            )
-            messages = to_messages(request.input)
-            result = await Runner.run(agent, messages)
-            response_text = _response_text_from_items(result.new_items)
-            output_items = cast(Any, [item.to_input_item() for item in result.new_items])
-            guardrail_subagents = _guardrail_scope_subagents(
-                output_items,
-                runtime_auth.policy_allowed_subagents,
-            )
-            source_suffix = _governed_source_suffix_with_fallback(
-                output_items,
-                guardrail_subagents,
-            )
-            if source_suffix and source_suffix not in response_text:
-                response_text += source_suffix
-                output_items = _append_source_to_output_items(output_items, source_suffix)
-            guardrail = HANDLER_DEPS.guardrails_evaluator(
-                response_text,
-                guardrail_subagents,
-            )
-            if guardrail.blocked:
-                HANDLER_DEPS.message_bus.publish(
-                    "response.guardrail.blocked",
-                    {
-                        "reasons": list(guardrail.reasons),
-                    },
-                )
-                raise UserError(
-                    "Response blocked by guardrails: " + ", ".join(guardrail.reasons)
-                )
-            HANDLER_DEPS.message_bus.publish(
-                "response.guardrail.passed",
-                {
-                    "reasons": list(guardrail.reasons),
-                },
-            )
+            connected = await _connect_request_stage(stack, prepared)
+            result = await _execute_invoke_stage(connected, prepared.messages)
+            finalized = _finalize_invoke_stage(result, connected)
             HANDLER_DEPS.message_bus.publish(
                 "request.invoke.succeeded",
                 {
                     "output_items": len(result.new_items),
-                    "unavailable_tools": len(unavailable),
-                    "unavailable_tool_details": unavailable,
+                    "unavailable_tools": len(finalized.unavailable),
+                    "unavailable_tool_details": finalized.unavailable,
                 },
             )
-            return ResponsesAgentResponse(output=cast(Any, output_items))
+            return ResponsesAgentResponse(output=cast(Any, finalized.output_items))
     except UserError as e:
         HANDLER_DEPS.message_bus.publish(
             "request.invoke.failed",
@@ -358,61 +569,21 @@ async def stream_handler(
             "subagents_total": len(SUBAGENTS),
         },
     )
-    runtime_auth = HANDLER_DEPS.runtime_auth_builder(request, SUBAGENTS, _client)
+    prepared = _prepare_request_stage(request)
 
     try:
         async with AsyncExitStack() as stack:
-            servers, unavailable_health = await HANDLER_DEPS.mcp_connector(
-                stack, runtime_auth.mcp_servers
-            )
-            unavailable = runtime_auth.unavailable_auth + unavailable_health
-            agent = HANDLER_DEPS.orchestrator_factory(
-                SETTINGS.orchestrator_model,
-                SUBAGENTS,
-                servers,
-                runtime_auth.subagent_tools,
-                unavailable,
-            )
-            messages = to_messages(request.input)
-            result = Runner.run_streamed(agent, input=messages)
-            event_count = 0
-            buffered_events: list[Any] = []
-            streamed_text_parts: list[str] = []
-            async for event in process_agent_stream_events(result.stream_events()):
-                event_count += 1
-                buffered_events.append(event)
-                text = _text_from_stream_event(event)
-                if text:
-                    streamed_text_parts.append(text)
-
-            buffered_payloads = [event for event in buffered_events if isinstance(event, dict)]
-            guardrail_subagents = _guardrail_scope_subagents(
-                buffered_payloads,
-                runtime_auth.policy_allowed_subagents,
-            )
-            source_suffix = _governed_source_suffix_with_fallback(
-                buffered_payloads,
-                guardrail_subagents,
-            )
-            if source_suffix and source_suffix not in "\n".join(streamed_text_parts):
-                streamed_text_parts.append(source_suffix)
-
-            guardrail = HANDLER_DEPS.guardrails_evaluator(
-                "\n".join(streamed_text_parts),
-                guardrail_subagents,
-            )
-            if guardrail.blocked:
-                HANDLER_DEPS.message_bus.publish(
-                    "response.guardrail.blocked",
+            connected = await _connect_request_stage(stack, prepared)
+            executed = await _execute_stream_stage(connected, prepared.messages)
+            finalized = _finalize_stream_stage(executed, connected)
+            if finalized.guardrail_blocked:
+                yield cast(
+                    Any,
                     {
-                        "reasons": list(guardrail.reasons),
-                        "mode": "stream",
+                        "type": "response.output_text.delta",
+                        "item_id": "item_guardrail",
+                        "delta": _guardrail_block_message(finalized.guardrail_reasons),
                     },
-                )
-                yield ResponsesAgentStreamEvent(
-                    type="response.output_text.delta",
-                    item_id="item_guardrail",
-                    delta=_guardrail_block_message(guardrail.reasons),
                 )
                 HANDLER_DEPS.message_bus.publish(
                     "request.stream.failed",
@@ -423,27 +594,23 @@ async def stream_handler(
                 )
                 return
 
-            HANDLER_DEPS.message_bus.publish(
-                "response.guardrail.passed",
-                {
-                    "reasons": list(guardrail.reasons),
-                    "mode": "stream",
-                },
-            )
-            for event in buffered_events:
+            for event in finalized.buffered_events:
                 yield event
-            if source_suffix:
-                yield ResponsesAgentStreamEvent(
-                    type="response.output_text.delta",
-                    item_id="item_source",
-                    delta=source_suffix,
+            if finalized.source_suffix:
+                yield cast(
+                    Any,
+                    {
+                        "type": "response.output_text.delta",
+                        "item_id": "item_source",
+                        "delta": finalized.source_suffix,
+                    },
                 )
             HANDLER_DEPS.message_bus.publish(
                 "request.stream.succeeded",
                 {
-                    "events_streamed": event_count,
-                    "unavailable_tools": len(unavailable),
-                    "unavailable_tool_details": unavailable,
+                    "events_streamed": finalized.event_count,
+                    "unavailable_tools": len(finalized.unavailable),
+                    "unavailable_tool_details": finalized.unavailable,
                 },
             )
     except UserError as e:

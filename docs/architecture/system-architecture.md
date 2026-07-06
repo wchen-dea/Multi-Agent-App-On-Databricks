@@ -214,4 +214,5 @@ Supported message bus backends:
 - `docs/architecture/technical-specs.md`: centralized technical domain map
 - `docs/architecture/system-design.md`: low-level implementation details
 - `docs/architecture/design-artifacts/README.md`: centralized full design diagram set across concept, logical, and deployment phases
+- `docs/architecture/design-artifacts/07-request-execution-flow-class-diagram.md`: simplified invoke/stream staged request execution class diagram
 - `docs/operations/runbook.md`: operations and incident handling

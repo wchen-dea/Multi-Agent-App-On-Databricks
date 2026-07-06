@@ -138,6 +138,8 @@ This document covers low-level design and implementation details. High-level arc
 
 ## Request Lifecycle
 
+Reference diagram: `docs/architecture/design-artifacts/07-request-execution-flow-class-diagram.md`
+
 1. UI sends request to the Databricks App endpoint.
 2. MLflow Agent Server receives and dispatches to invoke/stream handler.
 3. Runtime auth context is built, policy decisions are evaluated, and auth/policy events are published.
@@ -245,8 +247,9 @@ Direct non-interactive Databricks Apps invocation tests should use:
 
 ## Related Docs
 
-- `docs/product/business-specs.md`: business requirements and KPI intent
-- `docs/architecture/technical-specs.md`: centralized technical space boundaries
-- `docs/architecture/system-architecture.md`: high-level system view
+- `docs/product/business-specs.md`: business goals and requirements
+- `docs/architecture/technical-specs.md`: centralized technical domain map
+- `docs/architecture/system-architecture.md`: high-level architecture and request flow
 - `docs/architecture/design-artifacts/README.md`: centralized full design diagram set across concept, logical, and deployment phases
-- `docs/operations/runbook.md`: deployment and incident procedures
+- `docs/architecture/design-artifacts/08-backend-class-diagram-as-is.md`: concrete as-is backend class diagram
+- `docs/operations/runbook.md`: operations and incident handling
