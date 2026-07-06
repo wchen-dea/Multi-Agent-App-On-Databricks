@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help test build-app-source validate bundle-deploy import ensure-running stop deploy grant-runtime-permissions redeploy health smoke logs status
+.PHONY: help test build-app-source validate bundle-deploy import ensure-running stop deploy grant-runtime-permissions redeploy health smoke query-dev logs status
 
 PROFILE ?= DEFAULT
 TARGET ?= dev
@@ -11,6 +11,8 @@ APP_DEPLOY_MAX_ATTEMPTS ?= 60
 APP_DEPLOY_POLL_SECONDS ?= 2
 PERMISSIONS_FAIL_OPEN ?= true
 PERMISSIONS_DRY_RUN ?= false
+QUERY ?= ping
+QUERY_PERSONA ?= manager
 
 APP_GET_JSON = databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json
 
@@ -28,12 +30,14 @@ help:
 	@printf "  make redeploy          Full redeploy: validate, apply bundle resources, import source, deploy app, grant permissions, verify health\n"
 	@printf "  make health            Verify app deployment/app state is healthy\n"
 	@printf "  make smoke            Smoke-check app URL, React index shell, and /invocations route\n"
+	@printf "  make query-dev        Invoke /invocations with bearer auth (QUERY, QUERY_PERSONA)\n"
 	@printf "  make status            Print current app status JSON\n"
 	@printf "  make logs              Tail recent app logs\n"
 	@printf "\n"
 	@printf "Examples:\n"
 	@printf "  make redeploy TARGET=dev APP_NAME=multiagent-app-dev\n"
 	@printf "  make health TARGET=qa APP_NAME=multiagent-app-qa\n"
+	@printf "  make query-dev TARGET=dev APP_NAME=multiagent-app-dev QUERY='top stores by revenue' QUERY_PERSONA=manager\n"
 
 test:
 	uv run pytest -q
@@ -171,6 +175,31 @@ smoke:
 	fi; \
 	rm -f "$$INV_TMP"; \
 	printf "Smoke checks passed for $(APP_NAME)\n"
+
+query-dev:
+	@set -e; \
+	APP_JSON="$$($(APP_GET_JSON))"; \
+	APP_URL="$$(printf "%s" "$$APP_JSON" | jq -r '.url')"; \
+	if [ -z "$$APP_URL" ] || [ "$$APP_URL" = "null" ]; then \
+		printf "Could not resolve app URL for $(APP_NAME)\n" >&2; \
+		exit 1; \
+	fi; \
+	TOKEN="$$(databricks auth token --profile "$(PROFILE)" --output json | jq -r '.access_token')"; \
+	if [ -z "$$TOKEN" ] || [ "$$TOKEN" = "null" ]; then \
+		printf "Could not resolve access token from databricks auth token for profile $(PROFILE)\n" >&2; \
+		exit 1; \
+	fi; \
+	PAYLOAD="$$(jq -nc --arg q "$(QUERY)" --arg p "$(QUERY_PERSONA)" '{input:[{role:"user",content:$$q}],stream:false,custom_inputs:{persona:$$p}}')"; \
+	RESP_TMP="$$(mktemp)"; \
+	CODE="$$(curl --noproxy '*' -sS -o "$$RESP_TMP" -w '%{http_code}' -X POST "$${APP_URL%/}/invocations" -H 'content-type: application/json' -H "authorization: Bearer $$TOKEN" --data "$$PAYLOAD")"; \
+	printf "query.url=%s\nquery.persona=%s\nquery.http_code=%s\n" "$$APP_URL" "$(QUERY_PERSONA)" "$$CODE"; \
+	cat "$$RESP_TMP"; \
+	printf "\n"; \
+	rm -f "$$RESP_TMP"; \
+	if [ "$$CODE" != "200" ]; then \
+		printf "Invocation failed with HTTP %s\n" "$$CODE" >&2; \
+		exit 1; \
+	fi
 
 status:
 	$(APP_GET_JSON)

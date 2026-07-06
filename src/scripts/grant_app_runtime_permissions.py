@@ -8,7 +8,7 @@ This script performs these actions:
 4) Grants required permissions to the app service principal:
    - Unity Catalog: USE CATALOG, USE SCHEMA, SELECT ON ALL TABLES
    - Genie spaces: CAN_RUN
-   - Vector search endpoints/indexes: CAN_QUERY
+    - Vector search endpoints: CAN_USE
    - Serving endpoints: CAN_QUERY
    - SQL warehouse: CAN_USE
 
@@ -68,6 +68,9 @@ class PermissionManager:
         self.dry_run = dry_run
         self.fail_open = fail_open
         self.failures: list[str] = []
+        self._vector_endpoint_id_by_name: dict[str, str] | None = None
+        self._serving_endpoint_id_by_name: dict[str, str] | None = None
+        self._warehouse_id_by_name: dict[str, str] | None = None
 
     def _warn_or_fail(self, message: str) -> None:
         self.failures.append(message)
@@ -105,7 +108,7 @@ class PermissionManager:
                 sid = item.get("space_id")
                 if isinstance(sid, str) and sid.strip() and not _is_placeholder(sid):
                     genie_space_ids.append(sid.strip())
-            else:
+            elif kind in {"serving_endpoint", "app"}:
                 endpoint = item.get("endpoint")
                 if isinstance(endpoint, str) and endpoint.strip() and not _is_placeholder(endpoint):
                     serving_endpoints.append(endpoint.strip())
@@ -124,11 +127,7 @@ class PermissionManager:
             )
         return sp_client_id.strip()
 
-    def _api_get_exists(self, path: str) -> bool:
-        result = self.cli.run(["api", "get", path], check=False)
-        return result.returncode == 0
-
-    def _api_patch_permission(self, object_path: str, level: str, sp_client_id: str) -> bool:
+    def _update_permissions(self, object_type: str, object_id: str, level: str, sp_client_id: str) -> bool:
         payload = {
             "access_control_list": [
                 {
@@ -137,13 +136,101 @@ class PermissionManager:
                 }
             ]
         }
-        args = ["api", "patch", f"/api/2.0/permissions/{object_path}", "--json", json.dumps(payload)]
+        args = [
+            "permissions",
+            "update",
+            object_type,
+            object_id,
+            "--json",
+            json.dumps(payload),
+        ]
         if self.dry_run:
             print(f"DRY RUN: databricks {' '.join(args)}")
             return True
 
         result = self.cli.run(args, check=False)
         return result.returncode == 0
+
+    def _list_vector_endpoint_ids(self) -> dict[str, str]:
+        if self._vector_endpoint_id_by_name is not None:
+            return self._vector_endpoint_id_by_name
+
+        payload = self.cli.run(
+            ["vector-search-endpoints", "list-endpoints", "--output", "json"],
+            expect_json=True,
+            check=False,
+        )
+        mapping: dict[str, str] = {}
+        if isinstance(payload, list):
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                endpoint_id = item.get("id")
+                if isinstance(name, str) and isinstance(endpoint_id, str) and name and endpoint_id:
+                    mapping[name] = endpoint_id
+
+        self._vector_endpoint_id_by_name = mapping
+        return mapping
+
+    def _list_serving_endpoint_ids(self) -> dict[str, str]:
+        if self._serving_endpoint_id_by_name is not None:
+            return self._serving_endpoint_id_by_name
+
+        payload = self.cli.run(
+            ["serving-endpoints", "list", "--output", "json"],
+            expect_json=True,
+            check=False,
+        )
+        mapping: dict[str, str] = {}
+        if isinstance(payload, list):
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                endpoint_id = item.get("id")
+                if isinstance(name, str) and isinstance(endpoint_id, str) and name and endpoint_id:
+                    mapping[name] = endpoint_id
+
+        self._serving_endpoint_id_by_name = mapping
+        return mapping
+
+    def _list_warehouse_ids(self) -> dict[str, str]:
+        if self._warehouse_id_by_name is not None:
+            return self._warehouse_id_by_name
+
+        payload = self.cli.run(["warehouses", "list", "--output", "json"], expect_json=True, check=False)
+        mapping: dict[str, str] = {}
+        if isinstance(payload, list):
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                warehouse_id = item.get("id")
+                if isinstance(name, str) and isinstance(warehouse_id, str) and name and warehouse_id:
+                    mapping[name] = warehouse_id
+
+        self._warehouse_id_by_name = mapping
+        return mapping
+
+    def _resolve_serving_endpoint_id(self, endpoint: str) -> str | None:
+        endpoints = self._list_serving_endpoint_ids()
+        if endpoint in endpoints:
+            return endpoints[endpoint]
+        return None
+
+    def _resolve_vector_endpoint_id(self, endpoint: str) -> str | None:
+        endpoints = self._list_vector_endpoint_ids()
+        if endpoint in endpoints:
+            return endpoints[endpoint]
+        return None
+
+    def _resolve_warehouse_id(self, warehouse: str) -> str | None:
+        # Already an id and exists.
+        if self.cli.run(["warehouses", "get", warehouse], check=False).returncode == 0:
+            return warehouse
+        # Try resolving from configured warehouse name.
+        return self._list_warehouse_ids().get(warehouse)
 
     def _execute_sql_grant(self, warehouse_id: str, statement: str) -> bool:
         payload = {
@@ -163,20 +250,26 @@ class PermissionManager:
         status = (result.get("status") or {}).get("state")
         return status in {"SUCCEEDED", "PENDING", "RUNNING"}
 
-    def _grant_uc_permissions(self, catalog: str | None, schema: str | None, warehouse_id: str | None, sp_client_id: str) -> None:
+    def _grant_uc_permissions(
+        self,
+        catalog: str | None,
+        schema: str | None,
+        warehouse_id_or_name: str | None,
+        sp_client_id: str,
+    ) -> None:
         if not catalog or not schema:
             print("INFO: Skipping UC grants; catalog/schema not configured for target.")
             return
         if _is_placeholder(catalog) or _is_placeholder(schema):
             print("INFO: Skipping UC grants; catalog/schema contains placeholder values.")
             return
-        if not warehouse_id or _is_placeholder(warehouse_id):
+        if not warehouse_id_or_name or _is_placeholder(warehouse_id_or_name):
             self._warn_or_fail("Cannot run UC grant SQL without a valid warehouse id.")
             return
 
-        warehouse_exists = self.cli.run(["warehouses", "get", warehouse_id], check=False).returncode == 0
-        if not warehouse_exists:
-            self._warn_or_fail(f"SQL warehouse not found or inaccessible: {warehouse_id}")
+        warehouse_id = self._resolve_warehouse_id(warehouse_id_or_name)
+        if not warehouse_id:
+            self._warn_or_fail(f"SQL warehouse not found or inaccessible: {warehouse_id_or_name}")
             return
 
         self._grant_warehouse_can_use(warehouse_id, sp_client_id)
@@ -203,7 +296,7 @@ class PermissionManager:
                 self._warn_or_fail(f"Failed UC SQL grant: {stmt}")
 
     def _grant_warehouse_can_use(self, warehouse_id: str, sp_client_id: str) -> None:
-        ok = self._api_patch_permission(f"warehouses/{warehouse_id}", "CAN_USE", sp_client_id)
+        ok = self._update_permissions("warehouses", warehouse_id, "CAN_USE", sp_client_id)
         print(f"WAREHOUSE PERMISSION: {'OK' if ok else 'FAILED'} -> {warehouse_id} CAN_USE")
         if not ok:
             self._warn_or_fail(f"Failed to grant warehouse CAN_USE: {warehouse_id}")
@@ -216,25 +309,15 @@ class PermissionManager:
         for space_id in genie_space_ids:
             if _is_placeholder(space_id):
                 continue
-            exists = self._api_get_exists(f"/api/2.0/genie/spaces/{space_id}")
+            exists = self.cli.run(["genie", "get-space", space_id], check=False).returncode == 0
             if not exists:
                 self._warn_or_fail(f"Genie space not found or inaccessible: {space_id}")
                 continue
 
-            candidate_paths = [
-                f"genie/spaces/{space_id}",
-                f"genie-spaces/{space_id}",
-            ]
-            granted = False
-            for object_path in candidate_paths:
-                if self._api_patch_permission(object_path, "CAN_RUN", sp_client_id):
-                    print(f"GENIE PERMISSION: OK -> {space_id} CAN_RUN")
-                    granted = True
-                    break
-            if not granted:
-                self._warn_or_fail(
-                    f"Failed to grant Genie CAN_RUN for {space_id}; tried paths: {candidate_paths}"
-                )
+            ok = self._update_permissions("genie", space_id, "CAN_RUN", sp_client_id)
+            print(f"GENIE PERMISSION: {'OK' if ok else 'FAILED'} -> {space_id} CAN_RUN")
+            if not ok:
+                self._warn_or_fail(f"Failed to grant Genie CAN_RUN: {space_id}")
 
     def _grant_serving_can_query(self, endpoint_names: list[str], sp_client_id: str) -> None:
         if not endpoint_names:
@@ -244,12 +327,12 @@ class PermissionManager:
         for endpoint in endpoint_names:
             if _is_placeholder(endpoint):
                 continue
-            exists = self.cli.run(["serving-endpoints", "get", endpoint], check=False).returncode == 0
-            if not exists:
+            endpoint_id = self._resolve_serving_endpoint_id(endpoint)
+            if not endpoint_id:
                 self._warn_or_fail(f"Serving endpoint not found or inaccessible: {endpoint}")
                 continue
 
-            ok = self._api_patch_permission(f"serving-endpoints/{endpoint}", "CAN_QUERY", sp_client_id)
+            ok = self._update_permissions("serving-endpoints", endpoint_id, "CAN_QUERY", sp_client_id)
             print(f"SERVING PERMISSION: {'OK' if ok else 'FAILED'} -> {endpoint} CAN_QUERY")
             if not ok:
                 self._warn_or_fail(f"Failed to grant serving endpoint CAN_QUERY: {endpoint}")
@@ -267,47 +350,18 @@ class PermissionManager:
             if _is_placeholder(endpoint):
                 continue
 
-            exists = self._api_get_exists(f"/api/2.0/vector-search/endpoints/{endpoint}")
-            if not exists:
+            endpoint_id = self._resolve_vector_endpoint_id(endpoint)
+            if not endpoint_id:
                 self._warn_or_fail(f"Vector search endpoint not found or inaccessible: {endpoint}")
                 continue
 
-            endpoint_ok = self._api_patch_permission(
-                f"vector-search-endpoints/{endpoint}",
-                "CAN_QUERY",
-                sp_client_id,
-            )
+            endpoint_ok = self._update_permissions("vector-search-endpoints", endpoint_id, "CAN_USE", sp_client_id)
             print(
                 f"VECTOR SEARCH ENDPOINT PERMISSION: {'OK' if endpoint_ok else 'FAILED'} -> "
-                f"{endpoint} CAN_QUERY"
+                f"{endpoint} CAN_USE"
             )
             if not endpoint_ok:
-                self._warn_or_fail(f"Failed to grant vector search endpoint CAN_QUERY: {endpoint}")
-
-            indexes_payload = self.cli.run(
-                ["api", "get", f"/api/2.0/vector-search/indexes?endpoint_name={endpoint}"],
-                expect_json=True,
-                check=False,
-            )
-            indexes = []
-            if isinstance(indexes_payload, dict):
-                indexes = indexes_payload.get("vector_indexes") or indexes_payload.get("indexes") or []
-
-            for idx in indexes:
-                index_name = idx.get("name") if isinstance(idx, dict) else None
-                if not isinstance(index_name, str) or not index_name.strip():
-                    continue
-                index_ok = self._api_patch_permission(
-                    f"vector-search-indexes/{index_name}",
-                    "CAN_QUERY",
-                    sp_client_id,
-                )
-                print(
-                    f"VECTOR SEARCH INDEX PERMISSION: {'OK' if index_ok else 'FAILED'} -> "
-                    f"{index_name} CAN_QUERY"
-                )
-                if not index_ok:
-                    self._warn_or_fail(f"Failed to grant vector search index CAN_QUERY: {index_name}")
+                self._warn_or_fail(f"Failed to grant vector search endpoint CAN_USE: {endpoint}")
 
     def run(self) -> int:
         target_vars = self._read_target_vars()
@@ -339,7 +393,6 @@ class PermissionManager:
         configured_serving = [
             target_vars.get("serving_endpoint_name"),
             target_vars.get("knowledge_assistant_endpoint_name"),
-            target_vars.get("ai_search_endpoint_name"),
             *subagent_serving,
         ]
         serving_endpoints = sorted(
@@ -364,6 +417,7 @@ class PermissionManager:
         uc_catalog = target_vars.get("uc_audit_catalog")
         uc_schema = target_vars.get("uc_audit_schema")
         warehouse_id = target_vars.get("uc_audit_warehouse_id")
+        message_bus_backend = str(target_vars.get("message_bus_backend") or "").strip().lower()
 
         print(f"Genie spaces: {genie_space_ids or 'none'}")
         print(f"Serving endpoints: {serving_endpoints or 'none'}")
@@ -376,12 +430,15 @@ class PermissionManager:
         self._grant_genie_can_run(genie_space_ids, sp_client_id)
         self._grant_serving_can_query(serving_endpoints, sp_client_id)
         self._grant_vector_search_can_query(vector_search_endpoints, sp_client_id)
-        self._grant_uc_permissions(
-            str(uc_catalog) if isinstance(uc_catalog, str) else None,
-            str(uc_schema) if isinstance(uc_schema, str) else None,
-            str(warehouse_id) if isinstance(warehouse_id, str) else None,
-            sp_client_id,
-        )
+        if message_bus_backend == "uc_table":
+            self._grant_uc_permissions(
+                str(uc_catalog) if isinstance(uc_catalog, str) else None,
+                str(uc_schema) if isinstance(uc_schema, str) else None,
+                str(warehouse_id) if isinstance(warehouse_id, str) else None,
+                sp_client_id,
+            )
+        else:
+            print("INFO: Skipping UC grants; message_bus_backend is not uc_table.")
 
         if self.failures:
             print("\nPermission management completed with issues:")
