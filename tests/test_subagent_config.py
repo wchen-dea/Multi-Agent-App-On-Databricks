@@ -214,6 +214,28 @@ def test_parse_subagents_accepts_governance_metadata():
     assert subagents[0].requires_evidence is True
 
 
+def test_parse_subagents_accepts_mcp_subagent():
+    subagents = parse_subagents(
+        [
+            {
+                "name": "product_search",
+                "type": "mcp",
+                "description": "search products",
+                "mcp_url": "/api/2.0/mcp/ai-search/catalog/schema/index",
+                "data_classification": "internal",
+                "owner": "platform-docs",
+                "freshness_sla": "24h",
+                "allowed_personas": ["manager"],
+                "requires_evidence": False,
+            }
+        ]
+    )
+
+    assert len(subagents) == 1
+    assert subagents[0].kind == "mcp"
+    assert subagents[0].mcp_url == "/api/2.0/mcp/ai-search/catalog/schema/index"
+
+
 def test_load_subagents_skips_placeholder_identifiers(tmp_path):
     config = [
         {

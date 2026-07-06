@@ -13,14 +13,14 @@
   },
   {
     "name": "knowledge_assistant_product",
-    "type": "serving_endpoint",
+    "type": "mcp",
     "auth_mode": "app",
     "data_classification": "internal",
     "owner": "platform-docs",
     "freshness_sla": "24h",
     "allowed_personas": ["analyst", "operator", "manager", "engineer"],
     "requires_evidence": false,
-    "endpoint": "knowledge_assistant",
-    "description": "Query the knowledge_assistant endpoint on Model Serving. Use this for product-specific knowledge and policy lookups. The endpoint must have task type agent/v1/responses."
+    "mcp_url": "/api/2.0/mcp/ai-search/dt_dev_gold/dwh_dbx/dim_product_search_index",
+    "description": "Query the Databricks AI Search MCP server for the dim_product_search_index index to answer product-specific knowledge and policy lookups. This tool is backed by the knowledge-assistant-product-ep Vector Search endpoint."
   }
 ]

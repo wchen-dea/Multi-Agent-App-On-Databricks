@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Literal
 
-SubagentKind = Literal["genie", "serving_endpoint", "app"]
-ALLOWED_SUBAGENT_KINDS = {"genie", "serving_endpoint", "app"}
+SubagentKind = Literal["genie", "serving_endpoint", "app", "mcp"]
+ALLOWED_SUBAGENT_KINDS = {"genie", "serving_endpoint", "app", "mcp"}
 SubagentAuthMode = Literal["app", "obo"]
 ALLOWED_SUBAGENT_AUTH_MODES = {"app", "obo"}
 DataClassification = Literal["public", "internal", "confidential", "restricted"]
@@ -33,6 +33,7 @@ class SubagentConfig:
     description: str
     endpoint: str | None = None
     space_id: str | None = None
+    mcp_url: str | None = None
     auth_mode: SubagentAuthMode = "app"
     data_classification: DataClassification = "internal"
     owner: str | None = None
@@ -62,7 +63,9 @@ class SubagentConfig:
             raise ValueError(f"Subagent {self.name!r} must include a description")
         if self.kind == "genie" and not self.space_id:
             raise ValueError(f"Genie subagent {self.name!r} must define space_id")
-        if self.kind != "genie" and not self.endpoint:
+        if self.kind == "mcp" and not self.mcp_url:
+            raise ValueError(f"MCP subagent {self.name!r} must define mcp_url")
+        if self.kind not in {"genie", "mcp"} and not self.endpoint:
             raise ValueError(f"Non-genie subagent {self.name!r} must define endpoint")
         if any(not persona.strip() for persona in self.allowed_personas):
             raise ValueError(f"Subagent {self.name!r} has invalid allowed_personas entry")
@@ -70,6 +73,10 @@ class SubagentConfig:
     @property
     def is_genie(self) -> bool:
         return self.kind == "genie"
+
+    @property
+    def is_mcp(self) -> bool:
+        return self.kind == "mcp"
 
     @property
     def is_obo(self) -> bool:
@@ -122,6 +129,7 @@ class SubagentConfig:
                 description=value["description"],
                 endpoint=value.get("endpoint"),
                 space_id=value.get("space_id"),
+                mcp_url=value.get("mcp_url"),
                 auth_mode=auth_mode,
                 data_classification=value["data_classification"],
                 owner=owner,
@@ -148,7 +156,9 @@ def _is_configured_subagent(entry: dict[str, Any]) -> bool:
     kind = entry.get("type")
     if kind == "genie" and _is_placeholder(entry.get("space_id")):
         return False
-    if kind != "genie" and _is_placeholder(entry.get("endpoint")):
+    if kind == "mcp" and _is_placeholder(entry.get("mcp_url")):
+        return False
+    if kind not in {"genie", "mcp"} and _is_placeholder(entry.get("endpoint")):
         return False
     return True
 

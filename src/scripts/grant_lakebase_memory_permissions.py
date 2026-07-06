@@ -7,20 +7,20 @@ Best-practice deployment usage:
 
 Usage:
         # Preferred: resolve SP from app name (uses Databricks CLI profile)
-        uv run python scripts/grant_permissions.py \
+        uv run python scripts/grant_lakebase_memory_permissions.py \
             --app-name multiagent-app-dev \
             --profile DEFAULT \
             --memory-type langgraph \
             --instance-name <lakebase-instance>
 
         # Backward compatible: pass SP client ID directly
-        uv run python scripts/grant_permissions.py \
+        uv run python scripts/grant_lakebase_memory_permissions.py \
             <sp-client-id> \
             --memory-type openai \
             --project <project> --branch <branch>
 
         # Preview grants without applying
-        uv run python scripts/grant_permissions.py \
+        uv run python scripts/grant_lakebase_memory_permissions.py \
             --app-name multiagent-app-dev \
             --memory-type langgraph \
             --instance-name <lakebase-instance> \

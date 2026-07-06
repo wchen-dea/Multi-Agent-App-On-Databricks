@@ -23,7 +23,7 @@ class AppSettings:
     message_bus_uc_catalog: str = ""
     message_bus_uc_schema: str = ""
     message_bus_uc_table: str = "agent_lifecycle_events"
-    default_request_persona: str = ""
+    default_request_persona: str = "manager"
 
 
 @lru_cache(maxsize=1)
@@ -50,5 +50,5 @@ def get_settings() -> AppSettings:
         message_bus_uc_catalog=os.getenv("UC_AUDIT_CATALOG", ""),
         message_bus_uc_schema=os.getenv("UC_AUDIT_SCHEMA", ""),
         message_bus_uc_table=os.getenv("UC_AUDIT_TABLE", "agent_lifecycle_events"),
-        default_request_persona=os.getenv("DEFAULT_REQUEST_PERSONA", ""),
+        default_request_persona=os.getenv("DEFAULT_REQUEST_PERSONA", "manager"),
     )

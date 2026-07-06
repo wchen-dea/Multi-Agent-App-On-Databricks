@@ -88,6 +88,39 @@ def test_build_mcp_servers_uses_factory_and_tracks_obo_unavailable():
     assert unavailable == ["Genie MCP tools (sales_obo) requires user authorization (OBO)"]
 
 
+def test_build_mcp_servers_supports_generic_mcp_subagent():
+    subagents = [
+        SubagentConfig(
+            name="product_search",
+            kind="mcp",
+            auth_mode="app",
+            mcp_url="/api/2.0/mcp/ai-search/catalog/schema/index",
+            description="ai search mcp",
+        )
+    ]
+
+    identity_ctx = SimpleNamespace(
+        has_user_identity=False,
+        user_workspace_client=None,
+        app_workspace_client=object(),
+    )
+
+    created = []
+
+    def fake_mcp_server_factory(**kwargs):
+        created.append(kwargs)
+        return kwargs
+
+    deps = OrchestratorDependencies(mcp_server_factory=fake_mcp_server_factory)
+
+    servers, unavailable = build_mcp_servers(subagents, identity_ctx, deps=deps)
+
+    assert len(servers) == 1
+    assert unavailable == []
+    assert created[0]["name"] == "MCP:product_search"
+    assert created[0]["url"].endswith("/api/2.0/mcp/ai-search/catalog/schema/index")
+
+
 def test_create_orchestrator_agent_requires_explicit_evidence_format_for_governed_tools():
     subagents = [
         SubagentConfig(

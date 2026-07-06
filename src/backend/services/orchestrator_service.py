@@ -134,7 +134,7 @@ def build_subagent_tools(
         return _call
 
     for subagent in subagents:
-        if subagent.is_genie:
+        if subagent.is_genie or subagent.is_mcp:
             continue
         tools.append(dependencies.function_tool_wrapper(_make_tool(subagent)))
     return tools
@@ -151,7 +151,7 @@ def build_mcp_servers(
     unavailable: list[str] = []
 
     for subagent in subagents:
-        if not subagent.is_genie:
+        if not subagent.is_genie and not subagent.is_mcp:
             continue
 
         if subagent.is_obo:
@@ -172,13 +172,20 @@ def build_mcp_servers(
         else:
             workspace_client = identity_ctx.app_workspace_client
 
+        if subagent.is_genie:
+            url = build_mcp_url(
+                f"/api/2.0/mcp/genie/{subagent.space_id}",
+                workspace_client=workspace_client,
+            )
+            server_name = f"Genie:{subagent.name}"
+        else:
+            url = build_mcp_url(subagent.mcp_url or "", workspace_client=workspace_client)
+            server_name = f"MCP:{subagent.name}"
+
         servers.append(
             dependencies.mcp_server_factory(
-                url=build_mcp_url(
-                    f"/api/2.0/mcp/genie/{subagent.space_id}",
-                    workspace_client=workspace_client,
-                ),
-                name=f"Genie:{subagent.name}",
+                url=url,
+                name=server_name,
                 workspace_client=workspace_client,
             )
         )
@@ -188,6 +195,7 @@ def build_mcp_servers(
                 "subagent": subagent.name,
                 "auth_mode": subagent.auth_mode,
                 "space_id": subagent.space_id,
+                "mcp_url": subagent.mcp_url,
             },
         )
 
@@ -230,12 +238,12 @@ def create_orchestrator_agent(
     """Create the orchestrator Agent with runtime-aware tool instructions."""
     tool_lines = [
         (
-            "- Genie MCP tools "
+            "- MCP tools "
             f"({subagent.name}, auth={subagent.auth_mode}, "
             f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
             f"{subagent.description}"
         )
-        if subagent.is_genie
+        if subagent.is_genie or subagent.is_mcp
         else (
             f"- {subagent.tool_name} (auth={subagent.auth_mode}, "
             f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "

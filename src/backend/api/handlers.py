@@ -115,6 +115,8 @@ def _resolve_subagent(candidate: str, subagents: list[SubagentConfig]) -> Subage
         normalized = normalized[len("query_") :]
     elif normalized.startswith("Genie:"):
         normalized = normalized.split(":", 1)[1]
+    elif normalized.startswith("MCP:"):
+        normalized = normalized.split(":", 1)[1]
 
     for subagent in subagents:
         if normalized in {subagent.name, subagent.tool_name}:

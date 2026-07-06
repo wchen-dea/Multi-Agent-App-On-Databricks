@@ -1,0 +1,425 @@
+"""Grant post-deploy runtime permissions for a Databricks App service principal.
+
+This script performs these actions:
+1) Resolves app service principal client id from app name.
+2) Discovers configured runtime resources for the selected target.
+3) Checks underlying resource existence (Genie spaces, UC catalog/schema, vector search,
+   serving endpoints, SQL warehouse).
+4) Grants required permissions to the app service principal:
+   - Unity Catalog: USE CATALOG, USE SCHEMA, SELECT ON ALL TABLES
+   - Genie spaces: CAN_RUN
+   - Vector search endpoints/indexes: CAN_QUERY
+   - Serving endpoints: CAN_QUERY
+   - SQL warehouse: CAN_USE
+
+The script uses the Databricks CLI for all checks/grants.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+from ruamel.yaml import YAML
+
+SUPPORTED_TARGETS = ("dev", "qa", "stg", "prod")
+
+
+def _is_placeholder(value: str | None) -> bool:
+    if not value:
+        return True
+    stripped = value.strip()
+    return stripped.startswith("<") and stripped.endswith(">")
+
+
+class CliError(RuntimeError):
+    pass
+
+
+class DatabricksCli:
+    def __init__(self, profile: str):
+        self.profile = profile
+
+    def run(self, args: list[str], expect_json: bool = False, check: bool = True) -> Any:
+        cmd = ["databricks", *args, "--profile", self.profile]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if check and result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            raise CliError(f"CLI failed: {' '.join(cmd)}\n{stderr}")
+        if not expect_json:
+            return result
+        if result.returncode != 0:
+            return None
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise CliError(f"Invalid JSON from CLI: {' '.join(cmd)}") from exc
+
+
+class PermissionManager:
+    def __init__(self, cli: DatabricksCli, target: str, app_name: str, dry_run: bool, fail_open: bool):
+        self.cli = cli
+        self.target = target
+        self.app_name = app_name
+        self.dry_run = dry_run
+        self.fail_open = fail_open
+        self.failures: list[str] = []
+
+    def _warn_or_fail(self, message: str) -> None:
+        self.failures.append(message)
+        print(f"WARN: {message}")
+
+    def _read_target_vars(self) -> dict[str, Any]:
+        target_file = Path("targets") / f"{self.target}.yml"
+        if not target_file.exists():
+            raise CliError(f"Target file not found: {target_file}")
+
+        yaml = YAML(typ="safe")
+        data = yaml.load(target_file.read_text(encoding="utf-8")) or {}
+        try:
+            return data["targets"][self.target].get("variables", {})
+        except Exception as exc:
+            raise CliError(f"Could not read variables from {target_file}") from exc
+
+    def _read_subagent_resource_hints(self) -> tuple[list[str], list[str]]:
+        config_file = Path("src/backend/domain") / f"subagents.{self.target}.json"
+        if not config_file.exists():
+            return [], []
+
+        try:
+            raw = json.loads(config_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise CliError(f"Invalid JSON in {config_file}") from exc
+
+        genie_space_ids: list[str] = []
+        serving_endpoints: list[str] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            kind = item.get("type")
+            if kind == "genie":
+                sid = item.get("space_id")
+                if isinstance(sid, str) and sid.strip() and not _is_placeholder(sid):
+                    genie_space_ids.append(sid.strip())
+            else:
+                endpoint = item.get("endpoint")
+                if isinstance(endpoint, str) and endpoint.strip() and not _is_placeholder(endpoint):
+                    serving_endpoints.append(endpoint.strip())
+
+        return sorted(set(genie_space_ids)), sorted(set(serving_endpoints))
+
+    def _resolve_app_sp_client_id(self) -> str:
+        payload = self.cli.run(["apps", "get", self.app_name, "--output", "json"], expect_json=True)
+        if not isinstance(payload, dict):
+            raise CliError(f"Could not fetch app details for {self.app_name}")
+
+        sp_client_id = payload.get("service_principal_client_id")
+        if not isinstance(sp_client_id, str) or not sp_client_id.strip():
+            raise CliError(
+                f"App {self.app_name} did not return service_principal_client_id in `databricks apps get`"
+            )
+        return sp_client_id.strip()
+
+    def _api_get_exists(self, path: str) -> bool:
+        result = self.cli.run(["api", "get", path], check=False)
+        return result.returncode == 0
+
+    def _api_patch_permission(self, object_path: str, level: str, sp_client_id: str) -> bool:
+        payload = {
+            "access_control_list": [
+                {
+                    "service_principal_name": sp_client_id,
+                    "permission_level": level,
+                }
+            ]
+        }
+        args = ["api", "patch", f"/api/2.0/permissions/{object_path}", "--json", json.dumps(payload)]
+        if self.dry_run:
+            print(f"DRY RUN: databricks {' '.join(args)}")
+            return True
+
+        result = self.cli.run(args, check=False)
+        return result.returncode == 0
+
+    def _execute_sql_grant(self, warehouse_id: str, statement: str) -> bool:
+        payload = {
+            "warehouse_id": warehouse_id,
+            "statement": statement,
+            "wait_timeout": "30s",
+        }
+        args = ["api", "post", "/api/2.0/sql/statements", "--json", json.dumps(payload)]
+        if self.dry_run:
+            print(f"DRY RUN SQL: {statement}")
+            return True
+
+        result = self.cli.run(args, expect_json=True, check=False)
+        if not isinstance(result, dict):
+            return False
+
+        status = (result.get("status") or {}).get("state")
+        return status in {"SUCCEEDED", "PENDING", "RUNNING"}
+
+    def _grant_uc_permissions(self, catalog: str | None, schema: str | None, warehouse_id: str | None, sp_client_id: str) -> None:
+        if not catalog or not schema:
+            print("INFO: Skipping UC grants; catalog/schema not configured for target.")
+            return
+        if _is_placeholder(catalog) or _is_placeholder(schema):
+            print("INFO: Skipping UC grants; catalog/schema contains placeholder values.")
+            return
+        if not warehouse_id or _is_placeholder(warehouse_id):
+            self._warn_or_fail("Cannot run UC grant SQL without a valid warehouse id.")
+            return
+
+        warehouse_exists = self.cli.run(["warehouses", "get", warehouse_id], check=False).returncode == 0
+        if not warehouse_exists:
+            self._warn_or_fail(f"SQL warehouse not found or inaccessible: {warehouse_id}")
+            return
+
+        self._grant_warehouse_can_use(warehouse_id, sp_client_id)
+
+        catalog_ok = self.cli.run(["catalogs", "get", catalog], check=False).returncode == 0
+        schema_ok = self.cli.run(["schemas", "get", f"{catalog}.{schema}"], check=False).returncode == 0
+        if not catalog_ok:
+            self._warn_or_fail(f"Catalog not found or inaccessible: {catalog}")
+            return
+        if not schema_ok:
+            self._warn_or_fail(f"Schema not found or inaccessible: {catalog}.{schema}")
+            return
+
+        principal = sp_client_id.replace("`", "")
+        statements = [
+            f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{principal}`",
+            f"GRANT USE SCHEMA ON SCHEMA `{catalog}`.`{schema}` TO `{principal}`",
+            f"GRANT SELECT ON ALL TABLES IN SCHEMA `{catalog}`.`{schema}` TO `{principal}`",
+        ]
+        for stmt in statements:
+            ok = self._execute_sql_grant(warehouse_id, stmt)
+            print(f"UC GRANT: {'OK' if ok else 'FAILED'} -> {stmt}")
+            if not ok:
+                self._warn_or_fail(f"Failed UC SQL grant: {stmt}")
+
+    def _grant_warehouse_can_use(self, warehouse_id: str, sp_client_id: str) -> None:
+        ok = self._api_patch_permission(f"warehouses/{warehouse_id}", "CAN_USE", sp_client_id)
+        print(f"WAREHOUSE PERMISSION: {'OK' if ok else 'FAILED'} -> {warehouse_id} CAN_USE")
+        if not ok:
+            self._warn_or_fail(f"Failed to grant warehouse CAN_USE: {warehouse_id}")
+
+    def _grant_genie_can_run(self, genie_space_ids: list[str], sp_client_id: str) -> None:
+        if not genie_space_ids:
+            print("INFO: No Genie spaces configured for target.")
+            return
+
+        for space_id in genie_space_ids:
+            if _is_placeholder(space_id):
+                continue
+            exists = self._api_get_exists(f"/api/2.0/genie/spaces/{space_id}")
+            if not exists:
+                self._warn_or_fail(f"Genie space not found or inaccessible: {space_id}")
+                continue
+
+            candidate_paths = [
+                f"genie/spaces/{space_id}",
+                f"genie-spaces/{space_id}",
+            ]
+            granted = False
+            for object_path in candidate_paths:
+                if self._api_patch_permission(object_path, "CAN_RUN", sp_client_id):
+                    print(f"GENIE PERMISSION: OK -> {space_id} CAN_RUN")
+                    granted = True
+                    break
+            if not granted:
+                self._warn_or_fail(
+                    f"Failed to grant Genie CAN_RUN for {space_id}; tried paths: {candidate_paths}"
+                )
+
+    def _grant_serving_can_query(self, endpoint_names: list[str], sp_client_id: str) -> None:
+        if not endpoint_names:
+            print("INFO: No serving endpoints configured for target.")
+            return
+
+        for endpoint in endpoint_names:
+            if _is_placeholder(endpoint):
+                continue
+            exists = self.cli.run(["serving-endpoints", "get", endpoint], check=False).returncode == 0
+            if not exists:
+                self._warn_or_fail(f"Serving endpoint not found or inaccessible: {endpoint}")
+                continue
+
+            ok = self._api_patch_permission(f"serving-endpoints/{endpoint}", "CAN_QUERY", sp_client_id)
+            print(f"SERVING PERMISSION: {'OK' if ok else 'FAILED'} -> {endpoint} CAN_QUERY")
+            if not ok:
+                self._warn_or_fail(f"Failed to grant serving endpoint CAN_QUERY: {endpoint}")
+
+    def _grant_vector_search_can_query(
+        self,
+        vector_search_endpoint_names: list[str],
+        sp_client_id: str,
+    ) -> None:
+        if not vector_search_endpoint_names:
+            print("INFO: No vector search endpoints configured for target.")
+            return
+
+        for endpoint in vector_search_endpoint_names:
+            if _is_placeholder(endpoint):
+                continue
+
+            exists = self._api_get_exists(f"/api/2.0/vector-search/endpoints/{endpoint}")
+            if not exists:
+                self._warn_or_fail(f"Vector search endpoint not found or inaccessible: {endpoint}")
+                continue
+
+            endpoint_ok = self._api_patch_permission(
+                f"vector-search-endpoints/{endpoint}",
+                "CAN_QUERY",
+                sp_client_id,
+            )
+            print(
+                f"VECTOR SEARCH ENDPOINT PERMISSION: {'OK' if endpoint_ok else 'FAILED'} -> "
+                f"{endpoint} CAN_QUERY"
+            )
+            if not endpoint_ok:
+                self._warn_or_fail(f"Failed to grant vector search endpoint CAN_QUERY: {endpoint}")
+
+            indexes_payload = self.cli.run(
+                ["api", "get", f"/api/2.0/vector-search/indexes?endpoint_name={endpoint}"],
+                expect_json=True,
+                check=False,
+            )
+            indexes = []
+            if isinstance(indexes_payload, dict):
+                indexes = indexes_payload.get("vector_indexes") or indexes_payload.get("indexes") or []
+
+            for idx in indexes:
+                index_name = idx.get("name") if isinstance(idx, dict) else None
+                if not isinstance(index_name, str) or not index_name.strip():
+                    continue
+                index_ok = self._api_patch_permission(
+                    f"vector-search-indexes/{index_name}",
+                    "CAN_QUERY",
+                    sp_client_id,
+                )
+                print(
+                    f"VECTOR SEARCH INDEX PERMISSION: {'OK' if index_ok else 'FAILED'} -> "
+                    f"{index_name} CAN_QUERY"
+                )
+                if not index_ok:
+                    self._warn_or_fail(f"Failed to grant vector search index CAN_QUERY: {index_name}")
+
+    def run(self) -> int:
+        target_vars = self._read_target_vars()
+        sp_client_id = self._resolve_app_sp_client_id()
+
+        print("Permission management plan")
+        print("-" * 60)
+        print(f"Target: {self.target}")
+        print(f"App: {self.app_name}")
+        print(f"Service principal client id: {sp_client_id}")
+
+        subagent_genie, subagent_serving = self._read_subagent_resource_hints()
+
+        configured_genie = [
+            target_vars.get("genie_space_id"),
+            target_vars.get("store_manager_genie_space_id"),
+            target_vars.get("executive_genie_space_id"),
+            target_vars.get("supply_chain_genie_space_id"),
+            *subagent_genie,
+        ]
+        genie_space_ids = sorted(
+            {
+                str(v).strip()
+                for v in configured_genie
+                if isinstance(v, str) and v.strip() and not _is_placeholder(v)
+            }
+        )
+
+        configured_serving = [
+            target_vars.get("serving_endpoint_name"),
+            target_vars.get("knowledge_assistant_endpoint_name"),
+            target_vars.get("ai_search_endpoint_name"),
+            *subagent_serving,
+        ]
+        serving_endpoints = sorted(
+            {
+                str(v).strip()
+                for v in configured_serving
+                if isinstance(v, str) and v.strip() and not _is_placeholder(v)
+            }
+        )
+
+        vector_search_endpoints = sorted(
+            {
+                str(v).strip()
+                for v in [
+                    target_vars.get("vector_search_endpoint_name"),
+                    target_vars.get("ai_search_endpoint_name"),
+                ]
+                if isinstance(v, str) and v.strip() and not _is_placeholder(v)
+            }
+        )
+
+        uc_catalog = target_vars.get("uc_audit_catalog")
+        uc_schema = target_vars.get("uc_audit_schema")
+        warehouse_id = target_vars.get("uc_audit_warehouse_id")
+
+        print(f"Genie spaces: {genie_space_ids or 'none'}")
+        print(f"Serving endpoints: {serving_endpoints or 'none'}")
+        print(f"Vector search endpoints: {vector_search_endpoints or 'none'}")
+        print(f"UC catalog/schema: {uc_catalog}.{uc_schema}")
+        print(f"SQL warehouse: {warehouse_id}")
+        if self.dry_run:
+            print("Mode: dry-run")
+
+        self._grant_genie_can_run(genie_space_ids, sp_client_id)
+        self._grant_serving_can_query(serving_endpoints, sp_client_id)
+        self._grant_vector_search_can_query(vector_search_endpoints, sp_client_id)
+        self._grant_uc_permissions(
+            str(uc_catalog) if isinstance(uc_catalog, str) else None,
+            str(uc_schema) if isinstance(uc_schema, str) else None,
+            str(warehouse_id) if isinstance(warehouse_id, str) else None,
+            sp_client_id,
+        )
+
+        if self.failures:
+            print("\nPermission management completed with issues:")
+            for item in self.failures:
+                print(f"- {item}")
+            return 0 if self.fail_open else 1
+
+        print("\nPermission management completed successfully.")
+        return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Grant runtime permissions to app service principal.")
+    parser.add_argument("--app-name", required=True, help="Databricks app name")
+    parser.add_argument("--target", required=True, choices=list(SUPPORTED_TARGETS), help="Bundle target")
+    parser.add_argument("--profile", default="DEFAULT", help="Databricks CLI profile")
+    parser.add_argument("--dry-run", action="store_true", help="Preview grants without applying")
+    parser.add_argument(
+        "--fail-open",
+        action="store_true",
+        help="Do not fail the script when some permission grants fail",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    cli = DatabricksCli(profile=args.profile)
+    manager = PermissionManager(
+        cli=cli,
+        target=args.target,
+        app_name=args.app_name,
+        dry_run=args.dry_run,
+        fail_open=args.fail_open,
+    )
+    exit_code = manager.run()
+    sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()

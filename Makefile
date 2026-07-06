@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help test build-app-source validate bundle-deploy import ensure-running stop deploy redeploy health smoke logs status
+.PHONY: help test build-app-source validate bundle-deploy import ensure-running stop deploy grant-runtime-permissions redeploy health smoke logs status
 
 PROFILE ?= DEFAULT
 TARGET ?= dev
@@ -9,6 +9,8 @@ APP_START_MAX_ATTEMPTS ?= 30
 APP_START_POLL_SECONDS ?= 2
 APP_DEPLOY_MAX_ATTEMPTS ?= 60
 APP_DEPLOY_POLL_SECONDS ?= 2
+PERMISSIONS_FAIL_OPEN ?= true
+PERMISSIONS_DRY_RUN ?= false
 
 APP_GET_JSON = databricks apps get "$(APP_NAME)" --profile "$(PROFILE)" --output json
 
@@ -22,7 +24,8 @@ help:
 	@printf "  make import            Upload .databricks_app_source into app workspace path\n"
 	@printf "  make stop              Stop app compute for APP_NAME\n"
 	@printf "  make deploy            Deploy uploaded app source with Databricks Apps\n"
-	@printf "  make redeploy          Full redeploy: validate, apply bundle resources, import source, deploy app, verify health\n"
+	@printf "  make grant-runtime-permissions  Grant app SP permissions on Genie/UC/VS/serving/warehouse\n"
+	@printf "  make redeploy          Full redeploy: validate, apply bundle resources, import source, deploy app, grant permissions, verify health\n"
 	@printf "  make health            Verify app deployment/app state is healthy\n"
 	@printf "  make smoke            Smoke-check app URL, React index shell, and /invocations route\n"
 	@printf "  make status            Print current app status JSON\n"
@@ -105,7 +108,18 @@ deploy: ensure-running
 	printf "Deploying app %s from source path: %s\n" "$(APP_NAME)" "$$APP_SRC"; \
 	databricks apps deploy "$(APP_NAME)" --profile "$(PROFILE)" --source-code-path "$$APP_SRC" --mode SNAPSHOT
 
-redeploy: build-app-source validate bundle-deploy import deploy health smoke
+grant-runtime-permissions:
+	@set -e; \
+	FLAGS=""; \
+	if [ "$(PERMISSIONS_DRY_RUN)" = "true" ]; then FLAGS="$$FLAGS --dry-run"; fi; \
+	if [ "$(PERMISSIONS_FAIL_OPEN)" = "true" ]; then FLAGS="$$FLAGS --fail-open"; fi; \
+	uv run python src/scripts/grant_app_runtime_permissions.py \
+		--app-name "$(APP_NAME)" \
+		--target "$(TARGET)" \
+		--profile "$(PROFILE)" \
+		$$FLAGS
+
+redeploy: build-app-source validate bundle-deploy import deploy grant-runtime-permissions health smoke
 
 health:
 	@APP_JSON="$$($(APP_GET_JSON))"; \
