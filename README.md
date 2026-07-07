@@ -11,7 +11,15 @@ Modern AI applications are moving from single-model chatbots to orchestrated sys
 - Stream responses in real time for interactive UX
 - Ship safely through multi-environment CI/CD
 
-This repository provides an MVP foundation that can scale to enterprise use cases.
+This repository provides an MVP foundation that can easily scale to enterprise use cases.
+
+Key project strengths:
+
+- Governed multi-agent routing with policy and guardrail enforcement before tool execution.
+- Hybrid authorization support for both app identity and user identity (OBO) execution paths.
+- Production-oriented quality gates using MLflow GenAI evaluation and KPI-based release blocking.
+- Resilient deployment workflow with Terraform-free fallback, health checks, and smoke checks.
+- Strong architecture and governance traceability through ADRs and domain-specific specifications.
 
 ## Introduction Dependencies
 
