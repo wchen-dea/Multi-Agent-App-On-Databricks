@@ -63,6 +63,10 @@ Then verify CI/deployment environment variables are set for evaluation gate thre
 - `EVAL_MIN_GROUNDEDNESS`
 - `EVAL_REQUIRE_ALL_KPIS=true`
 
+Model profile selection by environment is documented in:
+
+- [Model Matrix and Environment Recommendations](../quality/evaluation-spec.md#model-matrix-and-environment-recommendations)
+
 Final pre-release checks:
 
 - Run `databricks bundle validate -t TARGET --profile PROFILE`

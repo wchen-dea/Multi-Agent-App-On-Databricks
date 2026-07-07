@@ -212,6 +212,7 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - [docs/product/business-specs.md](docs/product/business-specs.md): business requirements, constraints, and success metrics.
 - [docs/architecture/technical-specs.md](docs/architecture/technical-specs.md): centralized technical implementation map and cross-space contracts.
 - [docs/quality/evaluation-spec.md](docs/quality/evaluation-spec.md): datasets, scorers, KPI thresholds, and release-gate rules.
+- [Model Matrix and Environment Recommendations](docs/quality/evaluation-spec.md#model-matrix-and-environment-recommendations): environment-specific model profile guidance for dev, qa, stg, and prod release planning.
 - [docs/governance/prompt-and-policy-spec.md](docs/governance/prompt-and-policy-spec.md): prompt layering and deterministic policy/guardrail behavior.
 - [docs/architecture/model-and-tool-registry.md](docs/architecture/model-and-tool-registry.md): registry of active tools, endpoints, and Genie spaces.
 - [docs/governance/data-contract-and-lineage-spec.md](docs/governance/data-contract-and-lineage-spec.md): data contracts, classification, and lineage requirements.

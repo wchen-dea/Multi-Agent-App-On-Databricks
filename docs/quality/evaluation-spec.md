@@ -86,6 +86,46 @@ CI pipeline enforcement:
 
 - `.github/workflows/databricks-cicd.yml`
 
+## Model Matrix and Environment Recommendations
+
+The project supports model selection at three layers:
+
+- Orchestrator model via `ORCHESTRATOR_MODEL`.
+- Subagent model/endpoint per environment config in `src/backend/domain/subagents.<target>.json`.
+- Evaluation user model in `src/backend/evaluate_agent.py` (`simulator.user_model`).
+
+### Recommended Runtime Profiles
+
+| Profile | Orchestrator model | Subagent model strategy | Evaluation model | Cost | Quality | Latency | Use case |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Balanced (default) | `databricks-gpt-5-2` | Keep current target-specific Genie and AI Search MCP routes | `databricks:/databricks-claude-sonnet-4-5` | Medium | High | Medium | Day-to-day development and standard release checks |
+| Quality-first | `databricks-claude-sonnet-4-5` | Keep current routes and enforce strict guardrails/evidence on governed paths | `databricks:/databricks-claude-sonnet-4-5` | High | Very high | Medium-high | High-stakes release validation and executive-facing workflows |
+| Cost-first | Smaller served instruction model endpoint in workspace | Keep Genie and AI Search routes unchanged; optimize only orchestration cost first | Smaller model for fast loops plus nightly Sonnet baseline | Low | Medium | Fast | High-volume internal traffic and rapid iteration |
+
+### Environment-Specific Recommendation
+
+- `dev`:
+	- Profile: Cost-first for inner loop, plus Balanced once per day.
+	- Orchestrator: smaller workspace-served model for local/branch testing.
+	- Evaluation: fast model for PR loops and `databricks:/databricks-claude-sonnet-4-5` before merge to shared branch.
+- `qa`:
+	- Profile: Balanced.
+	- Orchestrator: `databricks-gpt-5-2`.
+	- Evaluation: `databricks:/databricks-claude-sonnet-4-5` on each integration cycle.
+- `stg`:
+	- Profile: Quality-first.
+	- Orchestrator: `databricks-claude-sonnet-4-5`.
+	- Evaluation: `databricks:/databricks-claude-sonnet-4-5` with strict KPI enforcement (`EVAL_REQUIRE_ALL_KPIS=true`).
+- `prod`:
+	- Profile: Balanced runtime with Quality-first pre-release gate.
+	- Orchestrator: `databricks-gpt-5-2` by default; temporarily promote to `databricks-claude-sonnet-4-5` for sensitive launches.
+	- Evaluation: required Sonnet gate before deployment and periodic post-release drift checks.
+
+### Promotion Rule
+
+- Promote model/profile changes only when `make evaluate` passes gate thresholds in the target environment.
+- For Cost-first adoption, require no regression in tool-call correctness, auth correctness, and safety versus the Balanced baseline.
+
 ## Reporting and Review
 
 For each release candidate, capture:
