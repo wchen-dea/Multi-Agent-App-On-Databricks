@@ -68,8 +68,19 @@ Deployment is blocked when:
 ## Execution Commands
 
 ```bash
+make evaluate
 uv run agent-evaluate
 ```
+
+Use `make evaluate` when:
+
+- Before deploy/redeploy to validate release-gate KPIs.
+- After changes to prompts, routing, guardrails, or authorization logic.
+- After adding/renaming tools or subagents that can affect tool-call correctness.
+- After model or evaluator configuration changes that may affect quality or safety.
+- Before merging pull requests that change agent runtime behavior.
+
+Use `make test` for fast code-level regressions; use `make evaluate` for end-to-end conversational quality validation with MLflow scoring and release-gate enforcement.
 
 CI pipeline enforcement:
 

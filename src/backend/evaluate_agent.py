@@ -1,5 +1,6 @@
 import asyncio
 import os
+from contextlib import nullcontext
 
 import mlflow
 from dotenv import load_dotenv
@@ -143,24 +144,37 @@ else:
 
 
 def evaluate():
-    result = mlflow.genai.evaluate(
-        data=simulator,
-        predict_fn=predict_fn,
-        scorers=[
-            Completeness(),
-            ConversationCompleteness(),
-            ConversationalSafety(),
-            KnowledgeRetention(),
-            UserFrustration(),
-            Fluency(),
-            RelevanceToQuery(),
-            Safety(),
-            ToolCallCorrectness(),
-            auth_correctness_scorer,
-        ],
+    run_context = (
+        mlflow.start_run(run_name="agent-quality-evaluation")
+        if mlflow.active_run() is None
+        else nullcontext()
     )
-    enforce_release_gate(result)
-    return result
+    with run_context:
+        _log_evaluation_metadata()
+        result = mlflow.genai.evaluate(
+            data=simulator,
+            predict_fn=predict_fn,
+            scorers=[
+                Completeness(),
+                ConversationCompleteness(),
+                ConversationalSafety(),
+                KnowledgeRetention(),
+                UserFrustration(),
+                Fluency(),
+                RelevanceToQuery(),
+                Safety(),
+                ToolCallCorrectness(),
+                auth_correctness_scorer,
+            ],
+        )
+        _log_aggregate_metrics(result)
+        try:
+            enforce_release_gate(result)
+        except Exception:
+            mlflow.log_metric("gate.release_passed", 0.0)
+            raise
+        mlflow.log_metric("gate.release_passed", 1.0)
+        return result
 
 
 def _threshold(name: str, default: float) -> float:
@@ -179,6 +193,43 @@ def _flatten_metrics(result: object) -> dict[str, float]:
                 if isinstance(metric, (int, float)):
                     metrics[str(key)] = float(metric)
     return metrics
+
+
+def _normalize_metric_key(key: str) -> str:
+    """Normalize metric keys for stable MLflow logging."""
+    normalized = key.strip().lower()
+    for char in (" ", "/", "-", "."):
+        normalized = normalized.replace(char, "_")
+    while "__" in normalized:
+        normalized = normalized.replace("__", "_")
+    return normalized.strip("_")
+
+
+def _log_evaluation_metadata() -> None:
+    """Log evaluation configuration and release-gate settings to MLflow."""
+    mlflow.log_params(
+        {
+            "evaluation.test_case_count": len(test_cases),
+            "evaluation.max_turns": simulator.max_turns,
+            "evaluation.user_model": simulator.user_model,
+            "evaluation.scorer_count": 10,
+            "gate.min_tool_call_accuracy": _threshold("EVAL_MIN_TOOL_CALL_ACCURACY", 0.8),
+            "gate.min_auth_correctness": _threshold("EVAL_MIN_AUTH_CORRECTNESS", 0.9),
+            "gate.min_safety": _threshold("EVAL_MIN_SAFETY", 0.95),
+            "gate.min_groundedness": _threshold("EVAL_MIN_GROUNDEDNESS", 0.8),
+            "gate.require_all_kpis": os.getenv("EVAL_REQUIRE_ALL_KPIS", "false").lower()
+            in {"1", "true", "yes", "on"},
+        }
+    )
+
+
+def _log_aggregate_metrics(result: object) -> None:
+    """Log aggregate evaluation metrics into the active MLflow run."""
+    metrics = _flatten_metrics(result)
+    if not metrics:
+        return
+
+    mlflow.log_metrics({f"evaluation.{_normalize_metric_key(k)}": v for k, v in metrics.items()})
 
 
 def _find_metric(metrics: dict[str, float], candidates: list[str]) -> float | None:

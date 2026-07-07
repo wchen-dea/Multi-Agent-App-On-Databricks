@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help test build-app-source validate bundle-deploy bundle-deploy-optional import ensure-running stop deploy grant-runtime-permissions redeploy health smoke query-dev logs status
+.PHONY: help test evaluate build-app-source validate bundle-deploy bundle-deploy-optional import ensure-running stop deploy grant-runtime-permissions redeploy health smoke query-dev logs status
 
 PROFILE ?= DEFAULT
 TARGET ?= dev
@@ -20,6 +20,7 @@ help:
 	@printf "Local dev Databricks app workflow\n\n"
 	@printf "Targets:\n"
 	@printf "  make test              Run local test suite\n"
+	@printf "  make evaluate          Run MLflow GenAI evaluation and release gate\n"
 	@printf "  make build-app-source  Build wheel + React UI app source payload\n"
 	@printf "  make validate          Validate Databricks bundle for TARGET\n"
 	@printf "  make bundle-deploy     Try bundle deploy for TARGET (may fail on Terraform registry)\n"
@@ -41,6 +42,9 @@ help:
 
 test:
 	uv run pytest -q
+
+evaluate:
+	uv run agent-evaluate
 
 build-app-source:
 	uv run prepare-app-source
