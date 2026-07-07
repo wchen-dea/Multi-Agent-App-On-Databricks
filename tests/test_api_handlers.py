@@ -20,7 +20,7 @@ def test_guardrail_block_message_mentions_reason_and_remediation():
 
 def test_governed_source_suffix_uses_detected_tool_metadata():
     sales_agent = SubagentConfig(
-        name="sales_agent",
+        name="sales_insights_agent",
         kind="genie",
         auth_mode="obo",
         data_classification="confidential",
@@ -33,14 +33,14 @@ def test_governed_source_suffix_uses_detected_tool_metadata():
     )
 
     used = _used_subagents_from_payloads(
-        [{"type": "response.output_item.added", "item": {"name": "query_sales_agent"}}],
+        [{"type": "response.output_item.added", "item": {"name": sales_agent.tool_name}}],
         [sales_agent],
     )
     suffix = _governed_source_suffix(used)
 
     assert used == [sales_agent]
     assert suffix.startswith("\n\nSource: ")
-    assert "sales_agent" in suffix
+    assert "sales_insights_agent" in suffix
     assert "Genie MCP" in suffix
     assert "15m" in suffix
 
@@ -51,14 +51,14 @@ def test_append_source_to_output_items_updates_last_assistant_message():
         {"role": "assistant", "content": "Revenue is up 4%."},
     ]
 
-    updated = _append_source_to_output_items(output_items, "\n\nSource: sales_agent")
+    updated = _append_source_to_output_items(output_items, "\n\nSource: sales_insights_agent")
 
-    assert updated[-1]["content"].endswith("Source: sales_agent")
+    assert updated[-1]["content"].endswith("Source: sales_insights_agent")
 
 
 def test_governed_source_suffix_fallback_for_tool_activity_without_named_subagent():
     sales_agent = SubagentConfig(
-        name="sales_agent",
+        name="sales_insights_agent",
         kind="genie",
         auth_mode="obo",
         data_classification="confidential",
@@ -98,7 +98,7 @@ def test_event_has_tool_activity_detects_generic_tool_event_shapes():
 
 def test_guardrail_scope_subagents_empty_when_no_tool_activity():
     sales_agent = SubagentConfig(
-        name="sales_agent",
+        name="sales_insights_agent",
         kind="genie",
         auth_mode="obo",
         data_classification="confidential",

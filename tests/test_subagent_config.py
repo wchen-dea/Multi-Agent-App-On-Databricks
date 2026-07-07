@@ -8,7 +8,7 @@ from backend.domain.subagent_config import load_subagents, parse_subagents
 def test_load_subagents_valid_defaults(tmp_path):
     config = [
         {
-            "name": "sales_agent",
+            "name": "sales_insights_agent",
             "type": "genie",
             "data_classification": "confidential",
             "owner": "sales-analytics",
@@ -240,7 +240,7 @@ def test_parse_subagents_accepts_system_prompt():
     subagents = parse_subagents(
         [
             {
-                "name": "sales_agent",
+                "name": "sales_insights_agent",
                 "type": "genie",
                 "description": "sales genie",
                 "system_prompt": "Always answer with clear KPI labels.",
@@ -272,7 +272,7 @@ def test_load_subagents_skips_placeholder_identifiers(tmp_path):
             "description": "placeholder genie",
         },
         {
-            "name": "sales_agent",
+                "name": "sales_insights_agent",
             "type": "genie",
             "data_classification": "confidential",
             "owner": "sales-analytics",
@@ -289,13 +289,13 @@ def test_load_subagents_skips_placeholder_identifiers(tmp_path):
     subagents = load_subagents(config_path)
 
     assert len(subagents) == 1
-    assert subagents[0].name == "sales_agent"
+    assert subagents[0].name == "sales_insights_agent"
 
 
 def test_load_subagents_resolves_path_from_target_env(tmp_path, monkeypatch):
     config = [
         {
-            "name": "sales_agent",
+            "name": "sales_insights_agent",
             "type": "genie",
             "data_classification": "confidential",
             "owner": "sales-analytics",
@@ -319,7 +319,7 @@ def test_load_subagents_resolves_path_from_target_env(tmp_path, monkeypatch):
     subagents = subagent_config.load_subagents()
 
     assert len(subagents) == 1
-    assert subagents[0].name == "sales_agent"
+    assert subagents[0].name == "sales_insights_agent"
 
 
 def test_load_subagents_raises_helpful_error_when_unresolvable(tmp_path, monkeypatch):

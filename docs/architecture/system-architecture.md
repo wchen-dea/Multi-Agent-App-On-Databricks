@@ -153,7 +153,7 @@ flowchart TD
     OID --> O
 
     O --> G[Genie Sales Agent via MCP]
-    O --> K[MCP AI Search Agent knowledge_assistant_product]
+    O --> K[MCP AI Search Agent product_index_assistant]
     O --> L[Serving Endpoint Agent optional specialist]
 
     G --> M[MCP Genie Space]

@@ -124,7 +124,7 @@ def test_build_mcp_servers_supports_generic_mcp_subagent():
 def test_create_orchestrator_agent_requires_explicit_evidence_format_for_governed_tools():
     subagents = [
         SubagentConfig(
-            name="sales_agent",
+            name="sales_insights_agent",
             kind="genie",
             auth_mode="obo",
             data_classification="confidential",
@@ -147,7 +147,7 @@ def test_create_orchestrator_agent_requires_explicit_evidence_format_for_governe
 def test_create_orchestrator_agent_includes_subagent_system_prompt():
     subagents = [
         SubagentConfig(
-            name="knowledge_assistant_product",
+            name="product_index_assistant",
             kind="mcp",
             auth_mode="app",
             data_classification="internal",
@@ -180,7 +180,7 @@ def test_connect_healthy_mcp_servers_returns_detailed_unavailable_reason():
             return []
 
     class BrokenServer:
-        name = "Genie:sales_agent"
+        name = "Genie:sales_insights_agent"
 
         async def __aenter__(self):
             raise RuntimeError("401 unauthorized")
@@ -201,7 +201,7 @@ def test_connect_healthy_mcp_servers_returns_detailed_unavailable_reason():
 
     assert len(healthy) == 1
     assert unavailable == [
-        "Genie:sales_agent unavailable: RuntimeError: 401 unauthorized"
+        "Genie:sales_insights_agent unavailable: RuntimeError: 401 unauthorized"
     ]
 
 
@@ -211,8 +211,8 @@ def test_create_orchestrator_agent_includes_unavailable_details():
         [],
         [],
         [],
-        ["Genie:sales_agent unavailable: RuntimeError: 401 unauthorized"],
+        ["Genie:sales_insights_agent unavailable: RuntimeError: 401 unauthorized"],
     )
 
     assert "Unavailable tool/runtime details:" in agent.instructions
-    assert "Genie:sales_agent unavailable: RuntimeError: 401 unauthorized" in agent.instructions
+    assert "Genie:sales_insights_agent unavailable: RuntimeError: 401 unauthorized" in agent.instructions

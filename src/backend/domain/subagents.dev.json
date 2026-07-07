@@ -1,6 +1,6 @@
 [
   {
-    "name": "sales_agent",
+    "name": "sales_insights_agent",
     "type": "genie",
     "auth_mode": "app",
     "data_classification": "confidential",
@@ -13,7 +13,7 @@
     "description": "Sales agent backed by a Genie space for structured data analysis. Use this for sales metrics, store performance, and operational reporting."
   },
   {
-    "name": "knowledge_assistant_product",
+    "name": "product_index_assistant",
     "type": "mcp",
     "auth_mode": "app",
     "data_classification": "internal",

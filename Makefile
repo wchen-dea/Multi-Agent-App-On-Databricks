@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help test build-app-source validate bundle-deploy import ensure-running stop deploy grant-runtime-permissions redeploy health smoke query-dev logs status
+.PHONY: help test build-app-source validate bundle-deploy bundle-deploy-optional import ensure-running stop deploy grant-runtime-permissions redeploy health smoke query-dev logs status
 
 PROFILE ?= DEFAULT
 TARGET ?= dev
@@ -27,7 +27,7 @@ help:
 	@printf "  make stop              Stop app compute for APP_NAME\n"
 	@printf "  make deploy            Deploy uploaded app source with Databricks Apps\n"
 	@printf "  make grant-runtime-permissions  Grant app SP permissions on Genie/UC/VS/serving/warehouse\n"
-	@printf "  make redeploy          Full redeploy: validate, apply bundle resources, import source, deploy app, grant permissions, verify health\n"
+	@printf "  make redeploy          Full redeploy with auto fallback: validate, try bundle deploy, then import/deploy/permissions/health/smoke\n"
 	@printf "  make health            Verify app deployment/app state is healthy\n"
 	@printf "  make smoke            Smoke-check app URL, React index shell, and /invocations route\n"
 	@printf "  make query-dev        Invoke /invocations with bearer auth (QUERY, QUERY_PERSONA)\n"
@@ -51,6 +51,10 @@ validate:
 bundle-deploy:
 	@databricks bundle deploy -t "$(TARGET)" --profile "$(PROFILE)" || \
 		(printf "bundle deploy failed; use make redeploy for the Terraform-free fallback path\n" && exit 1)
+
+bundle-deploy-optional:
+	@databricks bundle deploy -t "$(TARGET)" --profile "$(PROFILE)" || \
+		printf "bundle deploy failed; continuing with Terraform-free fallback path (import -> deploy -> permissions -> health -> smoke)\n"
 
 import: build-app-source
 	@APP_JSON="$$($(APP_GET_JSON))"; \
@@ -89,14 +93,19 @@ stop:
 		exit 1; \
 	fi
 
-deploy: ensure-running
+deploy:
 	@APP_JSON="$$($(APP_GET_JSON))"; \
 	APP_SRC="$$(printf "%s" "$$APP_JSON" | jq -r '.default_source_code_path')"; \
+	APP_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.app_status.state // "UNKNOWN"')"; \
 	DEPLOY_STATE="$$(printf "%s" "$$APP_JSON" | jq -r '.active_deployment.status.state // "NONE"')"; \
 	ATTEMPT=0; \
 	if [ -z "$$APP_SRC" ] || [ "$$APP_SRC" = "null" ]; then \
 		printf "Could not resolve default_source_code_path for $(APP_NAME)\n" >&2; \
 		exit 1; \
+	fi; \
+	if [ "$$APP_STATE" != "RUNNING" ]; then \
+		printf "App %s is in state=%s; continuing deploy without RUNNING precondition.\n" "$(APP_NAME)" "$$APP_STATE"; \
+		databricks apps start "$(APP_NAME)" --profile "$(PROFILE)" >/dev/null 2>&1 || true; \
 	fi; \
 	while [ "$$DEPLOY_STATE" = "IN_PROGRESS" ] && [ $$ATTEMPT -lt "$(APP_DEPLOY_MAX_ATTEMPTS)" ]; do \
 		printf "Waiting for active deployment lock to clear: attempt=%s/%s state=%s\n" "$$((ATTEMPT + 1))" "$(APP_DEPLOY_MAX_ATTEMPTS)" "$$DEPLOY_STATE"; \
@@ -123,7 +132,7 @@ grant-runtime-permissions:
 		--profile "$(PROFILE)" \
 		$$FLAGS
 
-redeploy: build-app-source validate bundle-deploy import deploy grant-runtime-permissions health smoke
+redeploy: build-app-source validate bundle-deploy-optional import deploy grant-runtime-permissions health smoke
 
 health:
 	@APP_JSON="$$($(APP_GET_JSON))"; \

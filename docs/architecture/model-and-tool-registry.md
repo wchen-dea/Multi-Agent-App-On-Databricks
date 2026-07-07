@@ -28,10 +28,10 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 ## Active Genie Spaces (Dev)
 
-### sales_agent
+### sales_insights_agent
 
 - Type: genie
-- Runtime name: `sales_agent`
+- Runtime name: `sales_insights_agent`
 - Space ID source: `src/backend/domain/subagents.dev.json`
 - Auth mode: app
 - Classification: confidential
@@ -40,10 +40,10 @@ Provide an auditable and maintainable registry for runtime integrations and owne
 
 ## Active MCP Routes (Dev)
 
-### knowledge_assistant_product
+### product_index_assistant
 
 - Type: mcp
-- Runtime name: `knowledge_assistant_product`
+- Runtime name: `product_index_assistant`
 - MCP URL: `/api/2.0/mcp/ai-search/dt_dev_gold/dwh_dbx/dim_product_search_index`
 - Backing AI Search endpoint: `knowledge-assistant-product-ep`
 - Auth mode: app

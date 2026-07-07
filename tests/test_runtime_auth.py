@@ -11,7 +11,7 @@ from mlflow.types.responses import ResponsesAgentRequest
 def _sample_subagents() -> list[SubagentConfig]:
     return [
         SubagentConfig(
-            name="sales_agent",
+            name="sales_insights_agent",
             kind="genie",
             auth_mode="obo",
             data_classification="confidential",
@@ -168,11 +168,11 @@ def test_build_runtime_auth_context_applies_policy_filter_denials():
             [s[1]],
             [
                 SimpleNamespace(
-                    subagent_name="sales_agent",
+                    subagent_name="sales_insights_agent",
                     tool_name="query_sales_agent",
                     allowed=False,
                     reason_code="persona_not_allowed",
-                    reason="sales_agent denied by policy (persona 'manager' is not allowed)",
+                    reason="sales_insights_agent denied by policy (persona 'manager' is not allowed)",
                 ),
                 SimpleNamespace(
                     subagent_name="knowledge_assistant",
@@ -206,4 +206,4 @@ def test_build_runtime_auth_context_applies_policy_filter_denials():
     )
 
     assert ctx.subagent_tools == ["tool-managed"]
-    assert ctx.unavailable_auth == ["sales_agent denied by policy (persona 'manager' is not allowed)"]
+    assert ctx.unavailable_auth == ["sales_insights_agent denied by policy (persona 'manager' is not allowed)"]

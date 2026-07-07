@@ -36,7 +36,7 @@
     "description": "Supply Chain Genie for inventory, procurement, logistics, and fulfillment analytics."
   },
   {
-    "name": "sales_agent",
+    "name": "sales_insights_agent",
     "type": "genie",
     "auth_mode": "obo",
     "data_classification": "confidential",
@@ -60,7 +60,7 @@
     "description": "Query the knowledge-assistant endpoint on Model Serving. Use this for documentation and policy lookups. The endpoint must have task type agent/v1/responses."
   },
   {
-    "name": "knowledge_assistant_product",
+    "name": "product_index_assistant",
     "type": "serving_endpoint",
     "auth_mode": "app",
     "data_classification": "internal",

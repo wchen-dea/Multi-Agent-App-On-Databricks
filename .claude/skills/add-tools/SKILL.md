@@ -13,7 +13,7 @@ Edit `backend/domain/subagents.<target>.json`:
 
 ```python
 {
-    "name": "sales_agent",
+    "name": "sales_insights_agent",
     "type": "genie",
     "space_id": "<genie-space-id>",
     "description": "Sales analytics via Genie"
@@ -40,7 +40,7 @@ Edit `backend/domain/subagents.<target>.json`:
 
 ```python
 {
-  "name": "knowledge_assistant_product",
+  "name": "product_index_assistant",
   "type": "mcp",
   "mcp_url": "/api/2.0/mcp/ai-search/<catalog>/<schema>/<index>",
   "description": "AI Search MCP specialist"

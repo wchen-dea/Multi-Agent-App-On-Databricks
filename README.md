@@ -20,8 +20,8 @@ Runtime integrations are environment-specific through `src/backend/domain/subage
 
 Current dev target examples:
 
-- Genie space: `sales_agent` (space id configured in `subagents.dev.json`)
-- AI Search MCP index: `knowledge_assistant_product` using `/api/2.0/mcp/ai-search/dt_dev_gold/dwh_dbx/dim_product_search_index`
+- Genie space: `sales_insights_agent` (space id configured in `subagents.dev.json`)
+- AI Search MCP index: `product_index_assistant` using `/api/2.0/mcp/ai-search/dt_dev_gold/dwh_dbx/dim_product_search_index`
 
 ## Backend UC Security and Governance Guidelines
 
