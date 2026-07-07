@@ -209,6 +209,7 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 ## Documentation
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): contributor workflow and project docstring standard.
+- [COPYRIGHT](COPYRIGHT): project copyright notice and usage restrictions.
 - [docs/product/business-specs.md](docs/product/business-specs.md): business requirements, constraints, and success metrics.
 - [docs/architecture/technical-specs.md](docs/architecture/technical-specs.md): centralized technical implementation map and cross-space contracts.
 - [docs/quality/evaluation-spec.md](docs/quality/evaluation-spec.md): datasets, scorers, KPI thresholds, and release-gate rules.
