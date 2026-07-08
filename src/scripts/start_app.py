@@ -55,6 +55,27 @@ def _env_int(primary: str, fallback: str | None, default: int) -> int:
         return default
 
 
+def _resolve_backend_workers() -> int:
+    """Resolve backend worker count from environment.
+
+    Priority:
+    1) BACKEND_UVICORN_WORKERS
+    2) WEB_CONCURRENCY
+    3) default=1
+    """
+    return max(_env_int("BACKEND_UVICORN_WORKERS", "WEB_CONCURRENCY", 1), 1)
+
+
+def _resolve_frontend_workers() -> int:
+    """Resolve frontend worker count from environment.
+
+    Priority:
+    1) FRONTEND_UVICORN_WORKERS
+    2) default=1
+    """
+    return max(_env_int("FRONTEND_UVICORN_WORKERS", None, 1), 1)
+
+
 def check_port_available(port: int) -> bool:
     """Check whether a TCP port is available on localhost.
 
@@ -314,6 +335,8 @@ class ProcessManager:
             backend_cmd_args = list(backend_args or [])
             if "--port" not in backend_cmd_args:
                 backend_cmd_args.extend(["--port", str(self.port)])
+            if "--workers" not in backend_cmd_args:
+                backend_cmd_args.extend(["--workers", str(_resolve_backend_workers())])
             backend_cmd.extend(backend_cmd_args)
 
             # Start backend process first.
@@ -325,16 +348,20 @@ class ProcessManager:
                 # Start React UI proxy server process.
                 if self.frontend_port is None:
                     self.frontend_port = _env_int("CHAT_APP_PORT", "PORT", 3000)
+                frontend_workers = _resolve_frontend_workers()
+                frontend_cmd = [
+                    "uv",
+                    "run",
+                    "python",
+                    "-m",
+                    "scripts.react_ui_server",
+                    "--port",
+                    str(self.frontend_port),
+                ]
+                if frontend_workers > 1:
+                    frontend_cmd.extend(["--workers", str(frontend_workers)])
                 self.frontend_process = self.start_process(
-                    [
-                        "uv",
-                        "run",
-                        "python",
-                        "-m",
-                        "scripts.react_ui_server",
-                        "--port",
-                        str(self.frontend_port),
-                    ],
+                    frontend_cmd,
                     "frontend",
                     self.frontend_log,
                     FRONTEND_READY,

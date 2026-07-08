@@ -23,7 +23,7 @@ Primary implementation:
 - Subagent configuration is externalized in JSON and validated through typed domain models.
 - Supported subagent kinds include genie, serving_endpoint, app, and mcp.
 - Non-Genie function tools are generated dynamically from subagent metadata.
-- Genie integrations use MCP server registration and runtime health checks.
+- Genie integrations use MCP server registration with parallel runtime health checks and short TTL health caching.
 
 Primary implementation:
 
@@ -80,6 +80,7 @@ Primary implementation:
 - Lifecycle events are normalized with a shared event envelope.
 - Events are emitted across request, tool, MCP, auth, policy, and guardrail stages.
 - Message bus backend is environment-configurable.
+- Optional async queue-backed message-bus publishing is available to reduce request-path event I/O overhead.
 - UC-governed persistence is implemented through a uc_table backend.
 
 Supported backends:
@@ -112,6 +113,7 @@ Primary implementation:
 - Deployment is target-based with dev, qa, stg, and prod overlays.
 - Shared resource configuration is centralized and target overrides are explicit.
 - Environment variables configure runtime behavior for auth, bus backends, UC audit sink, and release gates.
+- Process concurrency tuning is supported through backend and frontend Uvicorn worker env controls.
 - Operational fallback deployment path is documented for registry outage scenarios.
 
 Primary implementation:

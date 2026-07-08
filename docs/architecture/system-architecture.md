@@ -38,6 +38,7 @@ Runtime stack:
 - OpenAI Agents SDK
 - Databricks OpenAI-compatible runtime clients
 - Structured message bus events for request/tool lifecycle observability
+- Optional async message-bus publishing mode to reduce request-path event I/O latency
 - Governed policy and response-guardrail enforcement for sensitive routes
 
 ### Major Components
@@ -198,6 +199,10 @@ Supported message bus backends:
 - `kafka`
 - `rabbitmq`
 - `uc_table` for Unity Catalog-governed Delta audit persistence
+
+Optional runtime mode:
+
+- `MESSAGE_BUS_ASYNC=true` to enqueue lifecycle events for background publishing
 
 ### Environment Topology
 

@@ -23,12 +23,33 @@ class AppSettings:
     message_bus_uc_catalog: str = ""
     message_bus_uc_schema: str = ""
     message_bus_uc_table: str = "agent_lifecycle_events"
+    message_bus_async: bool = False
+    message_bus_async_queue_size: int = 1000
+    message_bus_async_drain_timeout_seconds: float = 2.0
     default_request_persona: str = "manager"
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
     """Load backend runtime settings from environment variables."""
+    def _env_int(name: str, default: int) -> int:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+
+    def _env_float(name: str, default: float) -> float:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+
     return AppSettings(
         orchestrator_model=os.getenv("ORCHESTRATOR_MODEL", "databricks-gpt-5-2"),
         log_level=os.getenv("BACKEND_LOG_LEVEL", "INFO"),
@@ -50,5 +71,11 @@ def get_settings() -> AppSettings:
         message_bus_uc_catalog=os.getenv("UC_AUDIT_CATALOG", ""),
         message_bus_uc_schema=os.getenv("UC_AUDIT_SCHEMA", ""),
         message_bus_uc_table=os.getenv("UC_AUDIT_TABLE", "agent_lifecycle_events"),
+        message_bus_async=os.getenv("MESSAGE_BUS_ASYNC", "false").lower()
+        in {"1", "true", "yes", "on"},
+        message_bus_async_queue_size=_env_int("MESSAGE_BUS_ASYNC_QUEUE_SIZE", 1000),
+        message_bus_async_drain_timeout_seconds=_env_float(
+            "MESSAGE_BUS_ASYNC_DRAIN_TIMEOUT_SECONDS", 2.0
+        ),
         default_request_persona=os.getenv("DEFAULT_REQUEST_PERSONA", "manager"),
     )

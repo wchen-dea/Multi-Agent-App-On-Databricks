@@ -1,9 +1,13 @@
 """Provide orchestration helpers for tools, MCP connectivity, and agent assembly."""
 
+import asyncio
 from dataclasses import dataclass
 import logging
 from contextlib import AsyncExitStack
-from typing import Any
+import os
+from threading import Lock
+from time import monotonic
+from typing import Any, cast
 
 import mlflow
 from agents import Agent, function_tool
@@ -22,6 +26,138 @@ from backend.services.message_bus import NoOpMessageBus
 from backend.shared.runtime_utils import RequestIdentityContext, build_mcp_url
 
 logger = logging.getLogger(__name__)
+
+MCP_CONNECT_TIMEOUT_SECONDS = float(os.getenv("MCP_CONNECT_TIMEOUT_SECONDS", "10"))
+MCP_LIST_TOOLS_TIMEOUT_SECONDS = float(os.getenv("MCP_LIST_TOOLS_TIMEOUT_SECONDS", "10"))
+MCP_HEALTH_TTL_SECONDS = float(os.getenv("MCP_HEALTH_TTL_SECONDS", "30"))
+MCP_HEALTH_FAILURE_TTL_SECONDS = float(os.getenv("MCP_HEALTH_FAILURE_TTL_SECONDS", "10"))
+ORCHESTRATOR_INSTRUCTIONS_CACHE_SIZE = int(
+    os.getenv("ORCHESTRATOR_INSTRUCTIONS_CACHE_SIZE", "128")
+)
+
+
+@dataclass(frozen=True)
+class _McpHealthCacheEntry:
+    """Represent a cached MCP health decision with expiration metadata."""
+
+    healthy: bool
+    reason: str
+    expires_at_monotonic: float
+
+
+_MCP_HEALTH_CACHE: dict[str, _McpHealthCacheEntry] = {}
+_MCP_HEALTH_CACHE_LOCK = Lock()
+_ORCHESTRATOR_INSTRUCTIONS_CACHE: dict[tuple[tuple[Any, ...], ...], str] = {}
+_ORCHESTRATOR_INSTRUCTIONS_CACHE_LOCK = Lock()
+
+
+def _update_trace_metadata(metadata: dict[str, str]) -> None:
+    """Write orchestration metadata to the active MLflow trace."""
+    mlflow.update_current_trace(metadata=metadata)
+
+
+def _cache_key_for_server(server: McpServer) -> str:
+    """Build a stable cache key for an MCP server descriptor."""
+    name = str(getattr(server, "name", "MCP server"))
+    url = str(getattr(server, "url", ""))
+    return f"{name}|{url}"
+
+
+def _get_cached_mcp_health(cache_key: str) -> _McpHealthCacheEntry | None:
+    """Return a fresh cached health decision for a server when available."""
+    now = monotonic()
+    with _MCP_HEALTH_CACHE_LOCK:
+        entry = _MCP_HEALTH_CACHE.get(cache_key)
+        if entry is None:
+            return None
+        if entry.expires_at_monotonic <= now:
+            _MCP_HEALTH_CACHE.pop(cache_key, None)
+            return None
+        return entry
+
+
+def _set_cached_mcp_health(cache_key: str, healthy: bool, reason: str) -> None:
+    """Store MCP health status with different TTL for success vs failure."""
+    ttl = MCP_HEALTH_TTL_SECONDS if healthy else MCP_HEALTH_FAILURE_TTL_SECONDS
+    expires_at = monotonic() + max(ttl, 0.0)
+    with _MCP_HEALTH_CACHE_LOCK:
+        _MCP_HEALTH_CACHE[cache_key] = _McpHealthCacheEntry(
+            healthy=healthy,
+            reason=reason,
+            expires_at_monotonic=expires_at,
+        )
+
+
+def _subagent_instruction_signature(subagent: SubagentConfig) -> tuple[Any, ...]:
+    """Return a stable, hashable signature used for instruction caching."""
+    return (
+        subagent.name,
+        subagent.kind,
+        subagent.auth_mode,
+        subagent.data_classification,
+        subagent.requires_evidence,
+        subagent.description,
+        subagent.system_prompt or "",
+        subagent.tool_name,
+        bool(subagent.is_genie),
+        bool(subagent.is_mcp),
+    )
+
+
+def _build_base_orchestrator_instructions(subagents: list[SubagentConfig]) -> str:
+    """Build static orchestrator instructions derived from subagent config."""
+    tool_lines: list[str] = []
+    for subagent in subagents:
+        if subagent.is_genie or subagent.is_mcp:
+            base = (
+                "- MCP tools "
+                f"({subagent.name}, auth={subagent.auth_mode}, "
+                f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
+                f"{subagent.description}"
+            )
+        else:
+            base = (
+                f"- {subagent.tool_name} (auth={subagent.auth_mode}, "
+                f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
+                f"{subagent.description}"
+            )
+
+        if subagent.system_prompt:
+            base += f"\n  System prompt: {subagent.system_prompt}"
+        tool_lines.append(base)
+
+    if tool_lines:
+        return (
+            "You are an orchestrator agent. Route the user's request to the most "
+            "appropriate tool:\n"
+            + "\n".join(tool_lines)
+            + "\nIf unsure, ask the user for clarification."
+            + "\nFor any answer grounded in a tool marked evidence=true, include evidence in the final answer."
+            + "\nUse either inline citations like `[1]` or end with a `Source:` line naming the tool and freshness SLA."
+            + "\nDo not give a governed final answer without that evidence line."
+        )
+
+    return (
+        "You are an assistant. No routing tools are configured. "
+        "Answer based on your own knowledge."
+    )
+
+
+def _base_orchestrator_instructions(subagents: list[SubagentConfig]) -> str:
+    """Return cached static orchestrator instructions for the subagent set."""
+    key = tuple(_subagent_instruction_signature(subagent) for subagent in subagents)
+    with _ORCHESTRATOR_INSTRUCTIONS_CACHE_LOCK:
+        cached = _ORCHESTRATOR_INSTRUCTIONS_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+    built = _build_base_orchestrator_instructions(subagents)
+
+    with _ORCHESTRATOR_INSTRUCTIONS_CACHE_LOCK:
+        if len(_ORCHESTRATOR_INSTRUCTIONS_CACHE) >= max(ORCHESTRATOR_INSTRUCTIONS_CACHE_SIZE, 1):
+            _ORCHESTRATOR_INSTRUCTIONS_CACHE.clear()
+        _ORCHESTRATOR_INSTRUCTIONS_CACHE[key] = built
+    return built
 
 
 def _format_unavailable_reason(name: str, exc: Exception) -> str:
@@ -61,7 +197,7 @@ class OrchestratorDependencies:
         message_bus: Event sink for tool and MCP lifecycle signals.
     """
 
-    trace_metadata_updater: TraceMetadataUpdater = mlflow.update_current_trace
+    trace_metadata_updater: TraceMetadataUpdater = _update_trace_metadata
     function_tool_wrapper: FunctionToolWrapper = function_tool
     mcp_server_factory: McpServerFactory = McpServer
     message_bus: MessageBus = NoOpMessageBus()
@@ -174,7 +310,7 @@ def build_subagent_tools(
                     ]
                 response = await selected_client.responses.create(
                     model=subagent_cfg_param.model_name,
-                    input=tool_input,
+                    input=cast(Any, tool_input),
                 )
                 dependencies.message_bus.publish(
                     "tool.call.succeeded",
@@ -307,21 +443,49 @@ async def connect_healthy_mcp_servers(
     """
     healthy: list[McpServer] = []
     unavailable: list[str] = []
+    enter_lock = asyncio.Lock()
 
-    for server in servers:
-        name = getattr(server, "name", "MCP server")
+    async def _check_and_connect(server: McpServer) -> tuple[McpServer | None, str | None]:
+        name = str(getattr(server, "name", "MCP server"))
+        cache_key = _cache_key_for_server(server)
+        cached = _get_cached_mcp_health(cache_key)
+
+        if cached is not None and not cached.healthy:
+            return None, cached.reason
+
         try:
-            connected = await stack.enter_async_context(server)
-            await connected.list_tools()
-            healthy.append(connected)
+            # AsyncExitStack mutation is serialized; network health checks run in parallel.
+            async with enter_lock:
+                connected = await asyncio.wait_for(
+                    stack.enter_async_context(server),
+                    timeout=max(MCP_CONNECT_TIMEOUT_SECONDS, 0.1),
+                )
+
+            probe_required = cached is None or not cached.healthy
+            if probe_required:
+                await asyncio.wait_for(
+                    connected.list_tools(),
+                    timeout=max(MCP_LIST_TOOLS_TIMEOUT_SECONDS, 0.1),
+                )
+
+            _set_cached_mcp_health(cache_key, healthy=True, reason="")
+            return connected, None
         except Exception as exc:
             reason = _format_unavailable_reason(name, exc)
+            _set_cached_mcp_health(cache_key, healthy=False, reason=reason)
             logger.warning(
                 "MCP server %r unavailable (%s); continuing without it.",
                 name,
                 reason,
                 exc_info=True,
             )
+            return None, reason
+
+    results = await asyncio.gather(*(_check_and_connect(server) for server in servers))
+    for connected, reason in results:
+        if connected is not None:
+            healthy.append(connected)
+        elif reason:
             unavailable.append(reason)
 
     return healthy, unavailable
@@ -352,41 +516,7 @@ def create_orchestrator_agent(
         Instruction text enforces evidence requirements for tools marked with
         `requires_evidence=true`.
     """
-    tool_lines: list[str] = []
-    for subagent in subagents:
-        if subagent.is_genie or subagent.is_mcp:
-            base = (
-                "- MCP tools "
-                f"({subagent.name}, auth={subagent.auth_mode}, "
-                f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
-                f"{subagent.description}"
-            )
-        else:
-            base = (
-                f"- {subagent.tool_name} (auth={subagent.auth_mode}, "
-                f"classification={subagent.data_classification}, evidence={subagent.requires_evidence}): "
-                f"{subagent.description}"
-            )
-
-        if subagent.system_prompt:
-            base += f"\n  System prompt: {subagent.system_prompt}"
-        tool_lines.append(base)
-
-    if tool_lines:
-        instructions = (
-            "You are an orchestrator agent. Route the user's request to the most "
-            "appropriate tool:\n"
-            + "\n".join(tool_lines)
-            + "\nIf unsure, ask the user for clarification."
-            + "\nFor any answer grounded in a tool marked evidence=true, include evidence in the final answer."
-            + "\nUse either inline citations like `[1]` or end with a `Source:` line naming the tool and freshness SLA."
-            + "\nDo not give a governed final answer without that evidence line."
-        )
-    else:
-        instructions = (
-            "You are an assistant. No routing tools are configured. "
-            "Answer based on your own knowledge."
-        )
+    instructions = _base_orchestrator_instructions(subagents)
 
     if unavailable_tools:
         names = "\n- " + "\n- ".join(sorted(set(unavailable_tools)))

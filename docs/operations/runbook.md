@@ -143,8 +143,8 @@ When this occurs, use the explicit app-source deployment path below to deploy th
 ```bash
 uv run prepare-app-source
 databricks apps deploy APP_NAME --profile PROFILE \
-	--source-code-path "/Workspace/Users/<user>/.bundle/<bundle-name>/<target>/files/.databricks_app_source" \
-	--mode SNAPSHOT
+  --source-code-path "/Workspace/Users/<user>/.bundle/<bundle-name>/<target>/files/.databricks_app_source" \
+  --mode SNAPSHOT
 ```
 
 Then verify:
@@ -228,6 +228,13 @@ Hybrid auth verification checklist:
 uv run start-app
 ```
 
+Optional worker tuning (local or hosted startup path):
+
+```bash
+BACKEND_UVICORN_WORKERS=2
+FRONTEND_UVICORN_WORKERS=1
+```
+
 #### RabbitMQ message bus local example
 
 Use this when you want lifecycle events to publish through RabbitMQ instead of structured logs.
@@ -237,6 +244,9 @@ Use this when you want lifecycle events to publish through RabbitMQ instead of s
 MESSAGE_BUS_BACKEND=rabbitmq
 MESSAGE_BUS_TOPIC=agent-lifecycle-events
 MESSAGE_BUS_FAIL_OPEN=true
+MESSAGE_BUS_ASYNC=true
+MESSAGE_BUS_ASYNC_QUEUE_SIZE=1000
+MESSAGE_BUS_ASYNC_DRAIN_TIMEOUT_SECONDS=2.0
 
 # RabbitMQ connection
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
@@ -256,6 +266,9 @@ Use this when you want lifecycle events written to a Unity Catalog-governed Delt
 MESSAGE_BUS_BACKEND=uc_table
 MESSAGE_BUS_TOPIC=agent-lifecycle-events
 MESSAGE_BUS_FAIL_OPEN=true
+MESSAGE_BUS_ASYNC=true
+MESSAGE_BUS_ASYNC_QUEUE_SIZE=1000
+MESSAGE_BUS_ASYNC_DRAIN_TIMEOUT_SECONDS=2.0
 
 UC_AUDIT_WAREHOUSE_ID=<warehouse-id>
 UC_AUDIT_CATALOG=main
@@ -264,6 +277,18 @@ UC_AUDIT_TABLE=agent_lifecycle_events
 ```
 
 The backend auto-creates the schema/table if they do not exist.
+
+#### MCP latency tuning controls
+
+Use these variables to tune MCP connection health-check behavior:
+
+```bash
+MCP_CONNECT_TIMEOUT_SECONDS=10
+MCP_LIST_TOOLS_TIMEOUT_SECONDS=10
+MCP_HEALTH_TTL_SECONDS=30
+MCP_HEALTH_FAILURE_TTL_SECONDS=10
+ORCHESTRATOR_INSTRUCTIONS_CACHE_SIZE=128
+```
 
 #### Backend-only
 

@@ -1,4 +1,8 @@
-"""Build request-scoped auth context for hybrid app/OBO execution."""
+"""Build request-scoped authorization state for hybrid app and OBO execution.
+
+This module resolves request identity, applies policy gates, and wires each
+subagent to either the shared app client or a user-scoped OBO client.
+"""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -34,17 +38,23 @@ from backend.shared.runtime_utils import (
 )
 
 
+def _update_trace_metadata(metadata: dict[str, str]) -> None:
+    """Write authorization metadata to the active MLflow trace."""
+    mlflow.update_current_trace(metadata=metadata)
+
+
 @dataclass(frozen=True)
 class RuntimeAuthContext:
-    """Bundle precomputed auth/runtime dependencies for request handling.
+    """Request-scoped authorization result used by the orchestrator.
 
     Attributes:
-        subagent_tools: Callable tools allowed for this request after policy and
-            auth filtering.
-        mcp_servers: MCP server descriptors available for this request.
-        unavailable_auth: Human-readable reasons for denied or unavailable
-            subagents (policy and auth/runtime).
-        policy_allowed_subagents: Subagents that passed policy checks.
+        subagent_tools: Tool callables that remain available after policy and
+            runtime auth checks.
+        mcp_servers: MCP server descriptors exposed for this request.
+        unavailable_auth: Human-readable denial or unavailability reasons from
+            policy and runtime auth checks.
+        policy_allowed_subagents: Subagents that passed policy evaluation
+            before tool and MCP wiring.
     """
 
     subagent_tools: list
@@ -55,24 +65,32 @@ class RuntimeAuthContext:
 
 @dataclass(frozen=True)
 class RuntimeAuthDependencies:
-    """Injectable collaborators used to build request-scoped auth context.
+    """Injectable collaborators for building runtime authorization state.
 
     Attributes:
-        identity_context_provider: Builds request identity context for app and
-            optional user identities.
-        session_id_provider: Extracts trace session id from request metadata.
-        trace_metadata_updater: Emits auth metadata to the active trace.
-        obo_client_factory: Constructs OBO Databricks OpenAI clients.
-        subagent_tools_builder: Builds function tools for allowed subagents.
-        mcp_servers_builder: Builds MCP server definitions for allowed subagents.
-        policy_context_builder: Creates request policy context.
-        subagent_policy_filter: Applies policy decisions to subagent lists.
-        message_bus: Publishes auth and policy lifecycle events.
+        identity_context_provider: Resolves app identity plus any forwarded
+            user identity for the current request.
+        session_id_provider: Extracts the trace session id from request
+            metadata.
+        trace_metadata_updater: Records authorization metadata on the active
+            trace.
+        obo_client_factory: Creates a Databricks OpenAI client bound to the
+            forwarded user identity.
+        subagent_tools_builder: Builds tool callables for the allowed
+            subagents.
+        mcp_servers_builder: Builds MCP server descriptors for the allowed
+            subagents.
+        policy_context_builder: Derives the policy input for the current
+            request.
+        subagent_policy_filter: Evaluates which subagents remain allowed after
+            policy checks.
+        message_bus: Publishes auth and policy lifecycle events for auditing
+            and diagnostics.
     """
 
     identity_context_provider: IdentityContextProvider = build_request_identity_context
     session_id_provider: SessionIdProvider = get_session_id
-    trace_metadata_updater: TraceMetadataUpdater = mlflow.update_current_trace
+    trace_metadata_updater: TraceMetadataUpdater = _update_trace_metadata
     obo_client_factory: OboClientFactory = AsyncDatabricksOpenAI
     subagent_tools_builder: SubagentToolsBuilder = build_subagent_tools
     mcp_servers_builder: McpServersBuilder = build_mcp_servers
@@ -91,19 +109,21 @@ def _build_trace_metadata(
     identity_ctx: RequestIdentityContext,
     deps: RuntimeAuthDependencies,
 ) -> dict[str, str]:
-    """Build and emit trace metadata for hybrid app/OBO authorization.
+    """Build and emit trace metadata for authorization decisions.
 
     Args:
-        subagents: Active subagents considered for request execution.
+        subagents: Subagents considered for the request before final auth
+            wiring.
         request: Responses API request payload.
-        identity_ctx: Request identity context including user token presence.
-        deps: Runtime dependencies including tracing and message bus hooks.
+        identity_ctx: Resolved request identity, including user-token
+            availability.
+        deps: Runtime collaborators for trace and lifecycle emission.
 
     Returns:
-        Normalized metadata dictionary emitted to tracing and message bus.
+        Normalized metadata dictionary written to tracing and the message bus.
 
     Side Effects:
-        Updates current trace metadata and publishes an auth metadata event.
+        Updates the current trace and publishes an auth metadata event.
     """
     metadata: dict[str, str] = {
         "auth.user_token_present": str(identity_ctx.has_user_identity).lower(),
@@ -114,7 +134,7 @@ def _build_trace_metadata(
     if session_id := deps.session_id_provider(request):
         metadata["mlflow.trace.session"] = session_id
     deps.trace_metadata_updater(metadata=metadata)
-    deps.message_bus.publish("auth.trace.metadata.updated", metadata)
+    deps.message_bus.publish("auth.trace.metadata.updated", dict(metadata))
     return metadata
 
 
@@ -124,24 +144,26 @@ def build_runtime_auth_context(
     app_client: AsyncDatabricksOpenAI,
     deps: RuntimeAuthDependencies | None = None,
 ) -> RuntimeAuthContext:
-    """Build request-scoped auth context, tool wiring, and policy outcomes.
+    """Build request-scoped authorization state for orchestrator execution.
 
     Args:
         request: Incoming Responses API request.
         subagents: Configured subagents available to the orchestrator.
-        app_client: App-identity Databricks OpenAI client.
-        deps: Optional dependency overrides for testing and instrumentation.
+        app_client: Databricks OpenAI client running as the app identity.
+        deps: Optional dependency overrides, primarily used for tests and
+            instrumentation.
 
     Returns:
-        A request-scoped auth context containing allowed tools, MCP servers,
-        and unavailable reasons.
+        Authorization results containing allowed tools, MCP servers, and
+        unavailability reasons for this request.
 
     Side Effects:
-        Publishes policy/auth lifecycle events and updates trace metadata.
+        Publishes auth and policy lifecycle events and updates trace metadata.
 
     Notes:
-        OBO clients are created only when user identity is present in the
-        request context.
+        The function first resolves identity and policy outcomes, then builds
+        tool and MCP wiring with the correct identity. OBO clients are created
+        only when a forwarded user identity is present.
     """
     dependencies = deps or RuntimeAuthDependencies()
     identity_ctx = dependencies.identity_context_provider()
@@ -175,6 +197,8 @@ def build_runtime_auth_context(
     )
     _build_trace_metadata(subagents, request, identity_ctx, dependencies)
 
+    # Only construct a user-scoped client when the request includes a
+    # forwarded identity; OBO-only subagents remain unavailable otherwise.
     obo_client = (
         dependencies.obo_client_factory(workspace_client=identity_ctx.user_workspace_client)
         if identity_ctx.has_user_identity

@@ -209,8 +209,9 @@ class InvokeFinalizedStage {
 class StreamExecutedStage {
   +event_count: int
   +buffered_events: list
-  +buffered_payloads: list[dict]
   +streamed_text_parts: list[str]
+  +used_subagents: list[SubagentConfig]
+  +has_tool_activity: bool
 }
 
 class StreamFinalizedStage {
@@ -257,6 +258,7 @@ class MessageBus {
 
 class NoOpMessageBus
 class StructuredLoggingMessageBus
+class AsyncMessageBus
 class KafkaMessageBus
 class RabbitMQMessageBus
 class UcAuditTableMessageBus
@@ -273,6 +275,7 @@ class MessageBusFactory {
 
 MessageBus <|.. NoOpMessageBus
 MessageBus <|.. StructuredLoggingMessageBus
+MessageBus <|.. AsyncMessageBus
 MessageBus <|.. KafkaMessageBus
 MessageBus <|.. RabbitMQMessageBus
 MessageBus <|.. UcAuditTableMessageBus

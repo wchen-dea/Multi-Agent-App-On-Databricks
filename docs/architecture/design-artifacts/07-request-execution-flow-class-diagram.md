@@ -88,8 +88,9 @@ class ConnectedStage {
 class StreamExecutedStage {
   +event_count: int
   +buffered_events: list
-  +buffered_payloads: list[dict]
   +streamed_text_parts: list[str]
+  +used_subagents: list[SubagentConfig]
+  +has_tool_activity: bool
 }
 
 class StreamFinalizedStage {
@@ -138,7 +139,7 @@ StreamPipeline ..> AsyncExitStack : context scope
 ## Notes
 
 - Shared stages (`prepare`, `connect`) enforce a common pipeline contract for invoke and stream.
-- Stream path buffers events, applies guardrails, then emits buffered events (plus optional source suffix event).
+- Stream path buffers events, precomputes used-subagent/tool-activity context in one pass, applies guardrails, then emits buffered events (plus optional source suffix event).
 - Guardrail block behavior diverges by mode:
   - invoke: raises `UserError`
   - stream: emits block delta and terminates stream

@@ -64,12 +64,13 @@ class InvokeFinalizedStage:
 
 @dataclass(frozen=True)
 class StreamExecutedStage:
-    """Represent buffered stream output prior to guardrail finalization."""
+    """Represent buffered stream output with precomputed guardrail inputs."""
 
     event_count: int
     buffered_events: list[Any]
-    buffered_payloads: list[dict[str, Any]]
     streamed_text_parts: list[str]
+    used_subagents: list[SubagentConfig]
+    has_tool_activity: bool
 
 
 @dataclass(frozen=True)
@@ -204,19 +205,25 @@ async def _execute_stream_stage(
     connected: ConnectedStage,
     messages: list[Any],
 ) -> StreamExecutedStage:
-    """Run streamed orchestration and buffer output events for finalization.
+    """Run streamed orchestration and precompute finalization inputs.
 
     Args:
         connected: Connected stage containing orchestrator agent.
         messages: Normalized request messages.
 
     Returns:
-        Buffered stream execution stage for downstream guardrail processing.
+        Buffered stream execution stage with precomputed source and guardrail
+        inputs.
     """
     result = Runner.run_streamed(connected.agent, input=messages)
     event_count = 0
     buffered_events: list[Any] = []
     streamed_text_parts: list[str] = []
+    used_subagents: list[SubagentConfig] = []
+    seen_subagents: set[str] = set()
+    has_tool_activity = False
+    allowed_subagents = connected.runtime_auth.policy_allowed_subagents
+
     async for event in process_agent_stream_events(result.stream_events()):
         event_count += 1
         buffered_events.append(event)
@@ -224,12 +231,25 @@ async def _execute_stream_stage(
         if text:
             streamed_text_parts.append(text)
 
-    buffered_payloads = [event for event in buffered_events if isinstance(event, dict)]
+        if not isinstance(event, dict):
+            continue
+
+        if _payload_has_tool_activity(event):
+            has_tool_activity = True
+
+        for candidate in _candidate_tool_names(event):
+            subagent = _resolve_subagent(candidate, allowed_subagents)
+            if subagent is None or subagent.name in seen_subagents:
+                continue
+            seen_subagents.add(subagent.name)
+            used_subagents.append(subagent)
+
     return StreamExecutedStage(
         event_count=event_count,
         buffered_events=buffered_events,
-        buffered_payloads=buffered_payloads,
         streamed_text_parts=streamed_text_parts,
+        used_subagents=used_subagents,
+        has_tool_activity=has_tool_activity,
     )
 
 
@@ -246,20 +266,29 @@ def _finalize_stream_stage(
     Returns:
         Finalized stream stage with guardrail decision and output metadata.
     """
-    guardrail_subagents = _guardrail_scope_subagents(
-        executed.buffered_payloads,
-        connected.runtime_auth.policy_allowed_subagents,
-    )
-    source_suffix = _governed_source_suffix_with_fallback(
-        executed.buffered_payloads,
-        guardrail_subagents,
-    )
+    if executed.used_subagents:
+        guardrail_subagents = executed.used_subagents
+    elif executed.has_tool_activity:
+        guardrail_subagents = [
+            subagent
+            for subagent in connected.runtime_auth.policy_allowed_subagents
+            if subagent.requires_evidence
+        ]
+    else:
+        guardrail_subagents = []
+
+    source_suffix = _governed_source_suffix(executed.used_subagents)
+    if not source_suffix and guardrail_subagents and executed.has_tool_activity:
+        source_suffix = "\n\nSource: tool-backed governed response."
+
     streamed_text_parts = list(executed.streamed_text_parts)
-    if source_suffix and source_suffix not in "\n".join(streamed_text_parts):
+    stream_text = "\n".join(streamed_text_parts)
+    if source_suffix and source_suffix not in stream_text:
         streamed_text_parts.append(source_suffix)
+        stream_text = "\n".join(streamed_text_parts)
 
     guardrail = HANDLER_DEPS.guardrails_evaluator(
-        "\n".join(streamed_text_parts),
+        stream_text,
         guardrail_subagents,
     )
     if guardrail.blocked:
@@ -415,25 +444,33 @@ def _governed_source_suffix(used_subagents: list[SubagentConfig]) -> str:
 def _event_has_tool_activity(payloads: list[dict[str, Any]]) -> bool:
     """Return true when stream/output payloads show any tool execution activity."""
     for payload in payloads:
-        event_type = payload.get("type")
-        if isinstance(event_type, str) and (
-            event_type.startswith("response.output_item")
-            or "tool" in event_type
-            or "mcp" in event_type
-        ):
-            item = payload.get("item")
-            if isinstance(item, dict):
-                item_type = item.get("type")
-                if isinstance(item_type, str) and ("tool" in item_type or "mcp" in item_type):
-                    return True
-            elif "tool" in event_type or "mcp" in event_type:
+        if _payload_has_tool_activity(payload):
                 return True
 
+    return False
+
+
+def _payload_has_tool_activity(payload: dict[str, Any]) -> bool:
+    """Return true when a single event/output payload indicates tool activity."""
+    event_type = payload.get("type")
+    if isinstance(event_type, str) and (
+        event_type.startswith("response.output_item")
+        or "tool" in event_type
+        or "mcp" in event_type
+    ):
         item = payload.get("item")
         if isinstance(item, dict):
             item_type = item.get("type")
             if isinstance(item_type, str) and ("tool" in item_type or "mcp" in item_type):
                 return True
+        elif "tool" in event_type or "mcp" in event_type:
+            return True
+
+    item = payload.get("item")
+    if isinstance(item, dict):
+        item_type = item.get("type")
+        if isinstance(item_type, str) and ("tool" in item_type or "mcp" in item_type):
+            return True
 
     return False
 

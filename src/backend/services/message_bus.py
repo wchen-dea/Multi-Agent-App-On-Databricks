@@ -1,10 +1,13 @@
 """Provide message bus implementations for request-scoped lifecycle event publishing."""
 
+import atexit
 import json
 import logging
 from datetime import datetime, timezone
 from importlib import import_module
+from queue import Empty, Full, Queue
 import re
+from threading import Event, Thread
 from uuid import uuid4
 
 from databricks.sdk import WorkspaceClient
@@ -47,6 +50,78 @@ class StructuredLoggingMessageBus:
         """
         event = _build_event(event_type, payload)
         logger.info("message_bus_event %s", json.dumps(event, sort_keys=True, default=str))
+
+
+class AsyncMessageBus:
+    """Publish events asynchronously through a background worker queue."""
+
+    _SENTINEL = object()
+
+    def __init__(
+        self,
+        inner: MessageBus,
+        queue_size: int,
+        fail_open: bool,
+        drain_timeout_seconds: float,
+    ) -> None:
+        self._inner = inner
+        self._queue: Queue[object] = Queue(maxsize=max(queue_size, 1))
+        self._fail_open = fail_open
+        self._drain_timeout_seconds = max(drain_timeout_seconds, 0.0)
+        self._stopped = Event()
+        self._worker = Thread(target=self._run, name="message-bus-worker", daemon=True)
+        self._worker.start()
+        atexit.register(self.close)
+
+    def _run(self) -> None:
+        while True:
+            try:
+                item = self._queue.get(timeout=0.5)
+            except Empty:
+                if self._stopped.is_set():
+                    return
+                continue
+
+            try:
+                if item is self._SENTINEL:
+                    return
+                event_type, payload = item
+                self._inner.publish(event_type, payload)
+            except Exception:
+                if self._fail_open:
+                    logger.exception(
+                        "Async message bus publish failed; dropping event due to fail-open policy"
+                    )
+                else:
+                    logger.exception("Async message bus publish failed")
+            finally:
+                self._queue.task_done()
+
+    def publish(self, event_type: str, payload: dict[str, object]) -> None:
+        """Queue a lifecycle event for asynchronous publishing."""
+        item = (event_type, dict(payload))
+        try:
+            self._queue.put_nowait(item)
+        except Full:
+            if self._fail_open:
+                logger.warning(
+                    "Async message bus queue full; dropping event",
+                    extra={"event_type": event_type},
+                )
+                return
+            raise RuntimeError("Async message bus queue is full")
+
+    def close(self) -> None:
+        """Stop the worker with best-effort queue drain."""
+        if self._stopped.is_set():
+            return
+        self._stopped.set()
+        try:
+            self._queue.put_nowait(self._SENTINEL)
+        except Full:
+            # Worker will stop after queue drains.
+            pass
+        self._worker.join(timeout=self._drain_timeout_seconds)
 
 
 class KafkaMessageBus:
@@ -369,52 +444,69 @@ def default_message_bus(settings: AppSettings | None = None) -> MessageBus:
     if backend == "noop":
         return NoOpMessageBus()
     if backend == "structured_logging":
-        return StructuredLoggingMessageBus()
+        return _maybe_wrap_async(StructuredLoggingMessageBus(), cfg)
     if backend == "kafka":
         try:
-            return KafkaMessageBus(
+            bus = KafkaMessageBus(
                 bootstrap_servers=cfg.message_bus_kafka_bootstrap_servers,
                 topic=cfg.message_bus_topic,
                 client_id=cfg.message_bus_kafka_client_id,
             )
+            return _maybe_wrap_async(bus, cfg)
         except Exception:
             if cfg.message_bus_fail_open:
                 logger.exception(
                     "Kafka message bus initialization failed; falling back to structured logging"
                 )
-                return StructuredLoggingMessageBus()
+                return _maybe_wrap_async(StructuredLoggingMessageBus(), cfg)
             raise
     if backend == "rabbitmq":
         try:
-            return RabbitMQMessageBus(
+            bus = RabbitMQMessageBus(
                 url=cfg.message_bus_rabbitmq_url,
                 exchange=cfg.message_bus_topic,
             )
+            return _maybe_wrap_async(bus, cfg)
         except Exception:
             if cfg.message_bus_fail_open:
                 logger.exception(
                     "RabbitMQ message bus initialization failed; falling back to structured logging"
                 )
-                return StructuredLoggingMessageBus()
+                return _maybe_wrap_async(StructuredLoggingMessageBus(), cfg)
             raise
     if backend == "uc_table":
         try:
-            return UcAuditTableMessageBus(
+            bus = UcAuditTableMessageBus(
                 warehouse_id=cfg.message_bus_uc_warehouse_id,
                 catalog=cfg.message_bus_uc_catalog,
                 schema=cfg.message_bus_uc_schema,
                 table=cfg.message_bus_uc_table,
                 fail_open=cfg.message_bus_fail_open,
             )
+            return _maybe_wrap_async(bus, cfg)
         except Exception:
             if cfg.message_bus_fail_open:
                 logger.exception(
                     "UC table message bus initialization failed; falling back to structured logging"
                 )
-                return StructuredLoggingMessageBus()
+                return _maybe_wrap_async(StructuredLoggingMessageBus(), cfg)
             raise
 
     logger.warning(
         "Unknown MESSAGE_BUS_BACKEND=%r; defaulting to structured logging", cfg.message_bus_backend
     )
-    return StructuredLoggingMessageBus()
+    return _maybe_wrap_async(StructuredLoggingMessageBus(), cfg)
+
+
+def _maybe_wrap_async(bus: MessageBus, settings: AppSettings) -> MessageBus:
+    """Wrap a bus with async publishing when MESSAGE_BUS_ASYNC is enabled."""
+    if not settings.message_bus_async:
+        return bus
+    if isinstance(bus, NoOpMessageBus):
+        return bus
+    return AsyncMessageBus(
+        inner=bus,
+        queue_size=settings.message_bus_async_queue_size,
+        fail_open=settings.message_bus_fail_open,
+        drain_timeout_seconds=settings.message_bus_async_drain_timeout_seconds,
+    )

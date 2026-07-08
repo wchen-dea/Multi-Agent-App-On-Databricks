@@ -1,4 +1,4 @@
-"""Define typed service interfaces for dependency injection and testing."""
+"""Define typed runtime service interfaces for dependency injection and tests."""
 
 from typing import Any, Protocol
 
@@ -17,13 +17,13 @@ class IdentityContextProvider(Protocol):
 
 
 class SessionIdProvider(Protocol):
-    """Extract session id from an incoming request payload."""
+    """Extract a session id from an incoming request payload."""
 
     def __call__(self, request: ResponsesAgentRequest) -> str | None: ...
 
 
 class TraceMetadataUpdater(Protocol):
-    """Persist trace metadata for observability."""
+    """Persist authorization metadata on the active trace."""
 
     def __call__(self, metadata: dict[str, str]) -> Any: ...
 
@@ -46,7 +46,7 @@ class SubagentToolsBuilder(Protocol):
 
 
 class McpServersBuilder(Protocol):
-    """Build MCP servers and unavailable-reason list for current request context."""
+    """Build MCP servers and unavailability reasons for the current request."""
 
     def __call__(
         self,

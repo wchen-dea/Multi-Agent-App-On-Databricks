@@ -57,7 +57,8 @@ This document covers low-level design and implementation details. High-level arc
   - Creates callable tools for configured subagents
   - Selects app vs OBO client per subagent tool call
   - Builds Genie MCP server list with auth-aware workspace client selection
-  - Assembles orchestrator instructions dynamically
+  - Caches static orchestrator instruction blocks by subagent metadata and appends request-scoped unavailable details dynamically
+  - Connects MCP servers with parallel health checks and short TTL health caching
   - Supports injectable dependencies for trace updates, tool wrapping, and MCP server creation
 
 - `src/backend/services/interfaces.py`
@@ -67,6 +68,7 @@ This document covers low-level design and implementation details. High-level arc
 - `src/backend/services/message_bus.py`
   - Provides message bus implementations for lifecycle event publishing
   - Ships with no-op, structured-logging, Kafka, RabbitMQ, and UC audit-table bus implementations
+  - Supports optional queue-backed async publish wrapper for request-path latency reduction
   - Serves as extension point for external queue/broker integrations
 
 - `src/backend/domain/subagent_config.py`
@@ -118,6 +120,7 @@ This document covers low-level design and implementation details. High-level arc
 
 - `src/scripts/start_app.py`
   - Starts backend and optional frontend in parallel
+  - Supports env-driven backend/frontend worker tuning for Uvicorn process fan-out
   - Tracks readiness patterns from logs
   - Detects first failure and exits with failing process code
   - In Databricks hosted runtime, remaps backend to internal port when UI shares app port
@@ -204,9 +207,19 @@ Used by local and hosted startup:
 - `BACKEND_LOG_LEVEL`
 - `BACKEND_LOG_FORMAT`
 - `BACKEND_LOG_DATE_FORMAT`
+- `BACKEND_UVICORN_WORKERS` (backend worker count, fallback to `WEB_CONCURRENCY`)
+- `FRONTEND_UVICORN_WORKERS` (React UI proxy worker count; values >1 use Uvicorn multi-worker mode)
 - `MESSAGE_BUS_BACKEND`
 - `MESSAGE_BUS_TOPIC`
 - `MESSAGE_BUS_FAIL_OPEN`
+- `MESSAGE_BUS_ASYNC`
+- `MESSAGE_BUS_ASYNC_QUEUE_SIZE`
+- `MESSAGE_BUS_ASYNC_DRAIN_TIMEOUT_SECONDS`
+- `MCP_CONNECT_TIMEOUT_SECONDS`
+- `MCP_LIST_TOOLS_TIMEOUT_SECONDS`
+- `MCP_HEALTH_TTL_SECONDS`
+- `MCP_HEALTH_FAILURE_TTL_SECONDS`
+- `ORCHESTRATOR_INSTRUCTIONS_CACHE_SIZE`
 - `KAFKA_BOOTSTRAP_SERVERS`
 - `KAFKA_CLIENT_ID`
 - `RABBITMQ_URL`
@@ -230,7 +243,7 @@ Direct non-interactive Databricks Apps invocation tests should use:
 
 ## Operational Constraints in Design
 
-- MCP servers are validated per request to avoid hard failures from stale/unauthorized connectors.
+- MCP health checks run in parallel with timeout controls and short TTL caching for healthy/unhealthy outcomes.
 - Fallback deployment path exists for Terraform registry outages (`bundle sync` + `apps deploy`).
 - Genie-backed queries require SQL warehouse and Unity Catalog grants for both user and app service principal.
 

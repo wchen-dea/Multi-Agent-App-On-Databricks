@@ -1,4 +1,8 @@
-"""Shared backend utilities for session handling, workspace access, and streaming."""
+"""Shared runtime helpers for identity, session handling, and streaming.
+
+These helpers centralize request-scoped Databricks client construction,
+forwarded-token handling, and stream event normalization used by the backend.
+"""
 
 from dataclasses import dataclass
 import logging
@@ -15,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RequestIdentityContext:
-    """Per-request identity context for hybrid app and OBO authorization."""
+    """Resolved app and user identity state for a single request."""
 
     app_workspace_client: WorkspaceClient
     user_workspace_client: WorkspaceClient | None
@@ -46,7 +50,7 @@ def get_databricks_host(workspace_client: WorkspaceClient | None = None) -> Opti
 
 
 def build_mcp_url(path: str, workspace_client: WorkspaceClient | None = None) -> str:
-    """Build an absolute MCP URL from a workspace-relative path."""
+    """Convert a workspace-relative MCP path into an absolute URL."""
     if not path.startswith("/"):
         return path
     hostname = get_databricks_host(workspace_client)
@@ -64,7 +68,7 @@ def get_user_workspace_client() -> WorkspaceClient:
 
 
 def get_forwarded_access_token() -> str | None:
-    """Get the forwarded user token from inbound request headers."""
+    """Read the forwarded user token from inbound request headers."""
     headers = get_request_headers() or {}
     token = headers.get(FORWARDED_ACCESS_TOKEN_HEADER)
     if not token:
@@ -74,7 +78,7 @@ def get_forwarded_access_token() -> str | None:
 
 
 def build_request_identity_context() -> RequestIdentityContext:
-    """Build per-request app and user identity clients for hybrid authorization."""
+    """Build the request-scoped app and optional user identity clients."""
     app_workspace_client = WorkspaceClient()
     token = get_forwarded_access_token()
     user_workspace_client = WorkspaceClient(token=token, auth_type="pat") if token else None
@@ -88,7 +92,7 @@ def build_request_identity_context() -> RequestIdentityContext:
 async def process_agent_stream_events(
     async_stream: AsyncIterator[StreamEvent],
 ) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
-    """Normalize stream event item IDs for downstream consumers."""
+    """Normalize streamed item identifiers for downstream consumers."""
     item_counter = 0
     curr_item_id = f"item_{item_counter}"
     async for event in async_stream:

@@ -1,4 +1,5 @@
 from backend.services.message_bus import (
+    AsyncMessageBus,
     KafkaMessageBus,
     NoOpMessageBus,
     RabbitMQMessageBus,
@@ -28,6 +29,17 @@ def test_default_message_bus_noop_backend():
 def test_default_message_bus_unknown_backend_falls_back_to_structured_logging():
     bus = default_message_bus(_settings(message_bus_backend="unknown"))
     assert isinstance(bus, StructuredLoggingMessageBus)
+
+
+def test_default_message_bus_async_wraps_structured_logging_backend():
+    bus = default_message_bus(
+        _settings(
+            message_bus_backend="structured_logging",
+            message_bus_async=True,
+            message_bus_async_queue_size=16,
+        )
+    )
+    assert isinstance(bus, AsyncMessageBus)
 
 
 def test_default_message_bus_kafka_backend_fail_open_falls_back_without_kafka_dependency():

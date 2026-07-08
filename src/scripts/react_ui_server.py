@@ -114,7 +114,17 @@ def spa_fallback(path: str) -> FileResponse:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run React UI static server with /invocations proxy")
     parser.add_argument("--port", type=int, default=int(os.environ.get("CHAT_APP_PORT", "3000")))
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of Uvicorn worker processes (default: 1)",
+    )
     args = parser.parse_args()
+
+    if args.workers > 1:
+        uvicorn.run("scripts.react_ui_server:app", host="0.0.0.0", port=args.port, workers=args.workers)
+        return
 
     uvicorn.run(app, host="0.0.0.0", port=args.port)
 

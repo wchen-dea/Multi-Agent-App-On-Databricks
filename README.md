@@ -122,6 +122,12 @@ Lifecycle and policy events are emitted through the message bus. Backend selecti
 - `rabbitmq`
 - `uc_table` (Unity Catalog-governed Delta audit table)
 
+Optional async publishing mode is available to move bus writes off the request path:
+
+- `MESSAGE_BUS_ASYNC=true`
+- `MESSAGE_BUS_ASYNC_QUEUE_SIZE=<int>`
+- `MESSAGE_BUS_ASYNC_DRAIN_TIMEOUT_SECONDS=<float>`
+
 For governed execution, the runtime emits policy allow/deny decisions and response guardrail pass/block outcomes.
 
 ## UI Token Commands
@@ -190,9 +196,14 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - `BACKEND_LOG_LEVEL`: backend log level (default `INFO`).
 - `BACKEND_LOG_FORMAT`: Python logging format string for backend logs.
 - `BACKEND_LOG_DATE_FORMAT`: datetime format used in backend logs.
+- `BACKEND_UVICORN_WORKERS`: backend worker count for `start-app`/`start-server` launch (fallback `WEB_CONCURRENCY`, default `1`).
+- `FRONTEND_UVICORN_WORKERS`: React UI proxy worker count for `start-app` frontend process (default `1`).
 - `MESSAGE_BUS_BACKEND`: `structured_logging` (default), `noop`, `kafka`, `rabbitmq`, or `uc_table`.
 - `MESSAGE_BUS_TOPIC`: topic name used by message bus backends (default `agent-lifecycle-events`).
 - `MESSAGE_BUS_FAIL_OPEN`: when `true`, fallback to structured logging if bus init fails.
+- `MESSAGE_BUS_ASYNC`: when `true`, publish bus events through an internal async queue worker.
+- `MESSAGE_BUS_ASYNC_QUEUE_SIZE`: max async bus queue size before drop/error policy applies (default `1000`).
+- `MESSAGE_BUS_ASYNC_DRAIN_TIMEOUT_SECONDS`: shutdown join timeout for async bus worker (default `2.0`).
 - `KAFKA_BOOTSTRAP_SERVERS`: Kafka bootstrap servers (required for `MESSAGE_BUS_BACKEND=kafka`).
 - `KAFKA_CLIENT_ID`: Kafka client id used by producer (default `multiagent-app`).
 - `RABBITMQ_URL`: RabbitMQ AMQP URL (required for `MESSAGE_BUS_BACKEND=rabbitmq`).
@@ -205,6 +216,14 @@ If bundle deploy fails due to Terraform provider registry availability, use the 
 - `EVAL_MIN_SAFETY`: release-gate threshold for safety KPI (default `0.95`).
 - `EVAL_MIN_GROUNDEDNESS`: release-gate threshold for groundedness KPI (default `0.80`).
 - `EVAL_REQUIRE_ALL_KPIS`: when `true`, fail release gate if any KPI metric is missing.
+
+MCP connect/probe performance controls:
+
+- `MCP_CONNECT_TIMEOUT_SECONDS`: timeout for MCP async context connection (default `10`).
+- `MCP_LIST_TOOLS_TIMEOUT_SECONDS`: timeout for MCP `list_tools` probe (default `10`).
+- `MCP_HEALTH_TTL_SECONDS`: cached healthy MCP status TTL in seconds (default `30`).
+- `MCP_HEALTH_FAILURE_TTL_SECONDS`: cached unhealthy MCP status TTL in seconds (default `10`).
+- `ORCHESTRATOR_INSTRUCTIONS_CACHE_SIZE`: max in-memory cached static instruction variants (default `128`).
 
 ## Documentation
 

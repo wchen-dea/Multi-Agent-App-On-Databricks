@@ -1,4 +1,9 @@
-"""Provide policy enforcement helpers for governed subagent access."""
+"""Evaluate request policy rules for governed subagent access.
+
+This module converts request inputs into a normalized policy context and then
+produces per-subagent allow or deny decisions that the runtime auth layer can
+enforce and audit.
+"""
 
 from dataclasses import dataclass
 from typing import Literal
@@ -12,12 +17,13 @@ from backend.shared.runtime_utils import RequestIdentityContext
 
 @dataclass(frozen=True)
 class PolicyContext:
-    """Request-scoped inputs consumed by governed policy checks.
+    """Normalized request attributes used during policy evaluation.
 
     Attributes:
-        persona: Normalized persona from request inputs or default settings.
-        has_user_identity: Whether forwarded user identity is available.
-        requested_tool: Explicit tool hint from request inputs, if provided.
+        persona: Normalized persona from the request or runtime defaults.
+        has_user_identity: Whether forwarded user identity is available for
+            OBO-protected routes.
+        requested_tool: Explicit tool hint from the request, when present.
         request_confidence: Optional confidence score attached to the request.
     """
 
@@ -29,12 +35,12 @@ class PolicyContext:
 
 @dataclass(frozen=True)
 class PolicyDecision:
-    """Represent a per-subagent policy allow/deny decision.
+    """Per-subagent policy decision emitted for routing and auditing.
 
     Attributes:
         subagent_name: Subagent configuration name.
         tool_name: Tool name exposed to orchestrator routing.
-        allowed: True when subagent is policy-eligible for this request.
+        allowed: Whether the subagent remains eligible for this request.
         reason_code: Machine-readable decision category.
         reason: Human-readable explanation for auditing and diagnostics.
     """
@@ -57,18 +63,19 @@ def build_policy_context(
     request: ResponsesAgentRequest,
     identity_ctx: RequestIdentityContext,
 ) -> PolicyContext:
-    """Build policy context from request custom inputs and identity state.
+    """Build the normalized policy context for a request.
 
     Args:
-        request: Incoming Responses API request that may carry custom inputs.
-        identity_ctx: Request identity context used for OBO-aware policy rules.
+        request: Incoming Responses API request, including optional custom
+            inputs.
+        identity_ctx: Request identity context used by OBO-aware policy rules.
 
     Returns:
-        Normalized policy context used by subagent filtering.
+        Normalized policy context consumed by subagent filtering.
 
     Notes:
-        Persona defaults to configured runtime settings when not provided by
-        request custom inputs.
+        Persona falls back to configured runtime defaults when the request does
+        not provide one explicitly.
     """
     persona: str | None = None
     default_persona = get_settings().default_request_persona.strip().lower() or None
@@ -101,20 +108,19 @@ def filter_subagents_by_policy(
     subagents: list[SubagentConfig],
     context: PolicyContext,
 ) -> tuple[list[SubagentConfig], list[PolicyDecision]]:
-    """Filter subagents by policy and return full decision trace.
+    """Apply policy rules to subagents and return the decision trace.
 
     Args:
         subagents: Candidate subagents to evaluate.
         context: Request policy context.
 
     Returns:
-        A tuple of:
-        - Subagents allowed for routing.
-        - Per-subagent allow/deny decisions for observability.
+        A tuple containing the subagents allowed for routing and the
+        per-subagent decisions recorded for observability.
 
     Notes:
-        Sensitive classifications require minimum confidence regardless of
-        auth mode.
+        Sensitive classifications require a minimum confidence threshold,
+        regardless of auth mode.
     """
     allowed: list[SubagentConfig] = []
     decisions: list[PolicyDecision] = []
@@ -187,7 +193,8 @@ def filter_subagents_by_policy(
             and context.request_confidence < sensitive_threshold
         ):
             if not context.has_user_identity:
-                # Already denied by auth-mode check above for OBO. Keep rule explicit for app tools too.
+                # OBO-only tools were already denied above; keep this branch so
+                # the confidence rule remains explicit for app-identity tools.
                 pass
             decisions.append(
                 PolicyDecision(
